@@ -48,8 +48,8 @@ jobs:
     steps:
       - name: Install Nitro CLI
         run: |
-          curl -O https://ec2-nitro-enclaves.amazonaws.com/nitro-cli/el7/nitro-cli.rpm
-          yum install -y nitro-cli.rpm
+          amazon-linux-extras install aws-nitro-enclaves-cli docker -y
+          yum install aws-nitro-enclaves-cli-devel jq util-linux unzip curl which file -y
       - name: Get short SHA
         id: slug
         run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
