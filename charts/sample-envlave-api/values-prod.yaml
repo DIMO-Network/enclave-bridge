@@ -1,0 +1,31 @@
+replicaCount: 1
+
+web:
+  image:
+    tag: 7abe3b5
+
+enclave:
+  image:
+    tag: 30ba023
+  env:
+    ENCLAVE_CPU_COUNT: "2"
+    ENCLAVE_MEMORY_SIZE: "1000"
+    ENCLAVE_CID: "16"
+    AWS_REGION: us-east-2
+    ENCLAVE_DEBUG_MODE:
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/auth-tls-secret: ingress/cf-origin-ca
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "3"
+    external-dns.alpha.kubernetes.io/hostname: sample-enclave-api.dimo.zone
+  hosts:
+    - host: sample-enclave-api.dimo.zone
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
