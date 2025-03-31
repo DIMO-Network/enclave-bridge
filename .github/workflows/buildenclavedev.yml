@@ -63,6 +63,7 @@ jobs:
         run: |
           curl -LO https://unofficial-builds.nodejs.org/download/release/v20.9.0/node-v20.9.0-linux-x64-glibc-217.tar.xz
           tar -xf node-v20.9.0-linux-x64-glibc-217.tar.xz --strip-components 1 -C /node20217
+          ldd /__e/node20/bin/node
       - name: Install Nitro CLI
         run: |
           amazon-linux-extras install aws-nitro-enclaves-cli docker -y
