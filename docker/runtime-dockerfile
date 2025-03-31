@@ -13,7 +13,7 @@ FROM amazonlinux:2 AS release
 WORKDIR /
 
 COPY --from=dimozone/aws-nitro-enclaves-sdk-c:latest /usr/lib64/libnsm.so /usr/lib64/libnsm.so
-COPY --from=enclave-app-build --chown=1001:1001 /build/bin/enclave-app /
+COPY --from=enclave-app-build --chown=1001:1001 /build/bin/sample-enclave-app /
 
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib64/"
 
@@ -21,4 +21,4 @@ USER 1001:1001
 
 EXPOSE 5000
 
-ENTRYPOINT ["./enclave-app", "5000"]
+ENTRYPOINT ["./sample-enclave-app", "5000"]

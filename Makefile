@@ -34,7 +34,7 @@ build:
 
 build-enclave:
 	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) \
-		go build -o $(PATHINSTBIN)/enclave-app ./cmd/enclave-app
+		go build -o $(PATHINSTBIN)/sample-enclave-app ./cmd/sample-enclave-app
 
 run: build
 	@./$(PATHINSTBIN)/$(BIN_NAME)
