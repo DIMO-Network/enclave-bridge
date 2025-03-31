@@ -10,7 +10,7 @@ RUN go mod download
 
 COPY . .
 
-RUN make build enclave-app
+RUN make build-enclave
 
 FROM amazonlinux:2 AS release
 
