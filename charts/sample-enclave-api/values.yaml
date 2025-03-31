@@ -1,14 +1,14 @@
 replicaCount: 1
 imagePullSecrets: []
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 podSecurityContext: {}
 web:
   image:
     repository: dimozone/sample-enclave-api
     pullPolicy: IfNotPresent
-    tag: 56f29ae
+    tag: 1ca709d
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -16,10 +16,10 @@ web:
         - all
   env:
     LOG_LEVEL: info
-    MON_PORT: "8888"
-    GRPC_PORT: "8086"
-    ENCLAVE_CID: "16"
-    ENCLAVE_PORT: "5000"
+    MON_PORT: '8888'
+    GRPC_PORT: '8086'
+    ENCLAVE_CID: '16'
+    ENCLAVE_PORT: '5000'
   ports:
     - name: mon-http
       containerPort: 8888
@@ -45,20 +45,20 @@ enclave:
       drop:
         - all
   env:
-    ENCLAVE_CPU_COUNT: "2"
-    ENCLAVE_MEMORY_SIZE: "1000"
-    ENCLAVE_CID: "16"
+    ENCLAVE_CPU_COUNT: '2'
+    ENCLAVE_MEMORY_SIZE: '1000'
+    ENCLAVE_CID: '16'
     AWS_REGION: us-east-2
-    ENCLAVE_DEBUG_MODE: "yes"
+    ENCLAVE_DEBUG_MODE: 'yes'
   ports: null
   resources:
     limits:
-      aws.ec2.nitro/nitro_enclaves: "1"
+      aws.ec2.nitro/nitro_enclaves: '1'
       hugepages-1Gi: 1Gi
       memory: 512Mi
       cpu: 500m
     requests:
-      aws.ec2.nitro/nitro_enclaves: "1"
+      aws.ec2.nitro/nitro_enclaves: '1'
       hugepages-1Gi: 1Gi
       memory: 128Mi
       cpu: 100m
@@ -78,10 +78,10 @@ ingress:
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/auth-tls-secret: ingress/cf-origin-ca
-    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: 'on'
+    nginx.ingress.kubernetes.io/enable-cors: 'true'
     nginx.ingress.kubernetes.io/cors-allow-origin: https://app.dev.dimo.zone
-    nginx.ingress.kubernetes.io/limit-rps: "3"
+    nginx.ingress.kubernetes.io/limit-rps: '3'
     external-dns.alpha.kubernetes.io/hostname: sample-enclave-api.dev.dimo.zone
   hosts:
     - host: sample-enclave-api.dev.dimo.zone
@@ -95,7 +95,7 @@ autoscaling:
   maxReplicas: 100
   targetCPUUtilizationPercentage: 80
 nodeSelector:
-  enclave: "true"
+  enclave: 'true'
 affinity: {}
 podDisruptionBudget:
   minAvailable: 0
@@ -105,7 +105,7 @@ kafka:
 serviceAccount:
   create: true
   annotations: {}
-  name: ""
+  name: ''
 serviceMonitor:
   enabled: true
   path: /metrics
