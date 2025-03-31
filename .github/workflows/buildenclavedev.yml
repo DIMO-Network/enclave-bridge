@@ -36,7 +36,7 @@ jobs:
 
   build-enclave:
     name: build-enclave
-    runs-on: [self-hosted,enclave]
+    runs-on: [self-hosted]
     needs: build-app
     container:
       image: dimozone/nitro-enclave-builder:latest
