@@ -51,7 +51,7 @@ jobs:
         run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
       - name: Build enclave
         run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{ steps.slug.outputs.sha7 }} --output-file /bin/sample-enclave-app.eif
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: sample-enclave-app
           path: ${{ github.workspace }}/bin/sample-enclave-app.eif
@@ -78,7 +78,7 @@ jobs:
         id: slug
         run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
       
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: sample-enclave-app
           path: ${{ github.workspace }}/bin/

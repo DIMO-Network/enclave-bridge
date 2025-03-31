@@ -55,7 +55,7 @@ jobs:
           strip_v: true
       - name: Build enclave
         run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{steps.tag.outputs.tag}} --output-file /bin/sample-enclave-app.eif
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: sample-enclave-app
           path: ${{ github.workspace }}/bin/sample-enclave-app.eif
@@ -84,7 +84,7 @@ jobs:
         with:
           strip_v: true
       
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: sample-enclave-app
           path: ${{ github.workspace }}/bin/
