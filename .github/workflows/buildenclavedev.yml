@@ -4,6 +4,13 @@ on:
     branches:
       - main
   workflow_dispatch:
+
+
+env:
+  ACTIONS_RUNNER_FORCED_INTERNAL_NODE_VERSION: node18
+  ACTIONS_RUNNER_FORCE_ACTIONS_NODE_VERSION: node18
+  # ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 jobs:
   build-app:
     name: build-runtime
@@ -46,11 +53,6 @@ jobs:
       volumes:
         - ${{ github.workspace }}/build/output:/build/output
     steps:
-      - name: Install Node.js 20
-        run: |
-          yum -y install nodejs20
-          mv /opt/actions-runner/externals/node20/bin/node /opt/actions-runner/externals/node20/bin/node-bak
-          ln -s /usr/bin/node-20 /opt/actions-runner/externals/node20/bin/node
       - name: Install Nitro CLI
         run: |
           amazon-linux-extras install aws-nitro-enclaves-cli docker -y
