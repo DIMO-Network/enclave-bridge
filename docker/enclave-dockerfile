@@ -7,7 +7,7 @@ RUN amazon-linux-extras install aws-nitro-enclaves-cli -y && \
     yum clean all && \
     rm -rf /var/cache/yum
 
-COPY resources/docker/run.sh  /
-COPY resources/docker/synthetic-wallet-enclave.eif /eif/
+COPY docker/run.sh  /
+COPY bin/sample-enclave-app.eif /eif/
 
 CMD ["/run.sh", "start"]

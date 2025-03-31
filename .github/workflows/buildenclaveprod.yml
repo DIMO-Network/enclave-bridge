@@ -54,11 +54,11 @@ jobs:
         with:
           strip_v: true
       - name: Build enclave
-        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{steps.tag.outputs.tag}} --output-file /build/output/synthetic-wallet-enclave.eif
+        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{steps.tag.outputs.tag}} --output-file /bin/sample-enclave-app.eif
       - uses: actions/upload-artifact@v3
         with:
-          name: synthetic-wallet-enclave
-          path: ${{ github.workspace }}/build/output/synthetic-wallet-enclave.eif
+          name: sample-enclave-app
+          path: ${{ github.workspace }}/bin/sample-enclave-app.eif
 
   build-final-image:
     # The type of runner that the job will run on
@@ -86,8 +86,8 @@ jobs:
       
       - uses: actions/download-artifact@v3
         with:
-          name: synthetic-wallet-enclave
-          path: ${{ github.workspace }}/resources/docker/
+          name: sample-enclave-app
+          path: ${{ github.workspace }}/bin/
 
       - name: Display structure of downloaded files
         run: ls -R

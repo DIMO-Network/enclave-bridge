@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 set -xe
-readonly ENCLAVE_NAME="synthetic-wallet-enclave"
+readonly ENCLAVE_NAME="sample-enclave-app"
 readonly EIF_PATH="/eif/$ENCLAVE_NAME.eif"
 
 ENCLAVE_CPU_COUNT=${ENCLAVE_CPU_COUNT:-1}
