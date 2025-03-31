@@ -39,13 +39,17 @@ jobs:
     runs-on: [self-hosted]
     needs: build-app
     container:
-      image: dimozone/nitro-enclave-builder:latest
+      image: amazonlinux:2023
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
       volumes:
         - ${{ github.workspace }}/build/output:/build/output
     steps:
+      - name: Install Nitro CLI
+        run: |
+          curl -O https://ec2-nitro-enclaves.amazonaws.com/nitro-cli/el7/nitro-cli.rpm
+          yum install -y nitro-cli.rpm
       - name: Get short SHA
         id: slug
         run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
