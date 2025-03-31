@@ -46,6 +46,11 @@ jobs:
       volumes:
         - ${{ github.workspace }}/build/output:/build/output
     steps:
+      - name: Install Node.js 20
+        run: |
+          sudo dnf -y install nodejs20
+          mv /opt/actions-runner/externals/node20/bin/node /opt/actions-runner/externals/node20/bin/node-bak
+          ln -s /usr/bin/node-20 /opt/actions-runner/externals/node20/bin/node
       - name: Install Nitro CLI
         run: |
           amazon-linux-extras install aws-nitro-enclaves-cli docker -y
