@@ -6,11 +6,6 @@ on:
   workflow_dispatch:
 
 
-env:
-  ACTIONS_RUNNER_FORCED_INTERNAL_NODE_VERSION: node18
-  ACTIONS_RUNNER_FORCE_ACTIONS_NODE_VERSION: node18
-  # ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-
 jobs:
   build-app:
     name: build-runtime
@@ -51,7 +46,6 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
       volumes:
-        - ${{ github.workspace }}/build/output:/build/output
         - /node20217:/node20217
         - /node20217:/__e/node20
     steps:
@@ -72,11 +66,11 @@ jobs:
         id: slug
         run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
       - name: Build enclave
-        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{ steps.slug.outputs.sha7 }} --output-file /bin/sample-enclave-app.eif
+        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{ steps.slug.outputs.sha7 }} --output-file bin/sample-enclave-app.eif
       - uses: actions/upload-artifact@v4
         with:
           name: sample-enclave-app
-          path: ${{ github.workspace }}/bin/sample-enclave-app.eif
+          path: bin/sample-enclave-app.eif
 
   build-final-image:
     # The type of runner that the job will run on
@@ -103,7 +97,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sample-enclave-app
-          path: ${{ github.workspace }}/bin/
+          path: bin/sample-enclave-app.eif
 
       - name: Display structure of downloaded files
         run: ls -R
