@@ -1,7 +1,7 @@
 replicaCount: 1
 web:
   image:
-    tag: 0.0.1
+    tag: 0.0.2
 enclave:
   image:
     tag: 30ba023
