@@ -13,7 +13,6 @@ import (
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -38,10 +37,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	listener, err := vsock.Listen(unix.VMADDR_CID_ANY, nil)
+	listener, err := vsock.Listen(uint32(port), nil)
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("Couldn't listen on port %d.", port)
 	}
+	logger.Debug().Msgf("Listening on %s", listener.Addr())
 
 	enclaveApp, err := app.CreateEnclaveWebServer(logger)
 	if err != nil {
