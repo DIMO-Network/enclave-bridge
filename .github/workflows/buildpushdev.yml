@@ -33,7 +33,7 @@ jobs:
           tags: dimozone/sample-enclave-api:${{ steps.slug.outputs.sha7 }}, dimozone/sample-enclave-api:latest
 
       - name: Update Image Version in the worker HelmChart values.yaml
-        uses: fjogeleit/yaml-update-action@master
+        uses: fjogeleit/yaml-update-action@v0.16.0
         with:
           valueFile: "charts/sample-enclave-api/values.yaml"
           propertyPath: "web.image.tag"

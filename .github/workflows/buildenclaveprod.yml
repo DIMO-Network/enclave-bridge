@@ -9,7 +9,7 @@ jobs:
     name: build-runtime
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -38,7 +38,7 @@ jobs:
 
   build-enclave:
     name: build-enclave
-    runs-on: [self-hosted,enclave]
+    runs-on: [self-hosted]
     needs: build-app
     container:
       image: dimozone/nitro-enclave-builder:latest
@@ -46,19 +46,32 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
       volumes:
-        - ${{ github.workspace }}/build/output:/build/output
+        - /node20217:/node20217
+        - /node20217:/__e/node20
     steps:
+      - name: Install dependencies
+        run: yum install -y curl git tar gunzip xz wget
+      - name: Print GLIBC version
+        run: ldd --version
+      - name: Install Node.js 20 glibc2.17
+        run: |
+          curl -LO https://unofficial-builds.nodejs.org/download/release/v20.9.0/node-v20.9.0-linux-x64-glibc-217.tar.xz
+          tar -xf node-v20.9.0-linux-x64-glibc-217.tar.xz --strip-components 1 -C /node20217
+          ldd /__e/node20/bin/node
+      - uses: actions/checkout@v4
       - name: Get tag
         id: tag
         uses: dawidd6/action-get-tag@v1
         with:
           strip_v: true
+      - name: Create bin directory
+        run: mkdir -p bin
       - name: Build enclave
-        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{steps.tag.outputs.tag}} --output-file /bin/sample-enclave-app.eif
+        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{steps.tag.outputs.tag}} --output-file bin/sample-enclave-app.eif
       - uses: actions/upload-artifact@v4
         with:
           name: sample-enclave-app
-          path: ${{ github.workspace }}/bin/sample-enclave-app.eif
+          path: bin/sample-enclave-app.eif
 
   build-final-image:
     # The type of runner that the job will run on
@@ -67,7 +80,7 @@ jobs:
     needs: build-enclave
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Login to DockerHub
         uses: docker/login-action@v2
@@ -87,7 +100,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sample-enclave-app
-          path: ${{ github.workspace }}/bin/
+          path: bin/sample-enclave-app.eif
 
       - name: Display structure of downloaded files
         run: ls -R
@@ -101,7 +114,7 @@ jobs:
           platforms: linux/amd64
           tags: dimozone/sample-enclave-app:${{steps.tag.outputs.tag}}, dimozone/sample-enclave-app:latest
 
-      - name: Update Image Version in the related HelmChart values.yaml
+      - name: Update Image Version in the worker HelmChart values.yaml
         uses: fjogeleit/yaml-update-action@v0.16.0
         with:
           valueFile: "charts/sample-enclave-api/values.yaml"
