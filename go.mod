@@ -5,10 +5,13 @@ go 1.24
 require (
 	github.com/DIMO-Network/shared v0.12.10
 	github.com/gofiber/fiber/v2 v2.52.6
+	github.com/mdlayher/vsock v1.2.1
 	github.com/prometheus/client_golang v1.21.1
 	github.com/rs/zerolog v1.34.0
+	golang.org/x/net v0.36.0
 	golang.org/x/sync v0.12.0
 	golang.org/x/sys v0.31.0
+	inet.af/tcpproxy v0.0.0-20231102063150-2862066fc2a9
 )
 
 require (
@@ -29,6 +32,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect

@@ -34,6 +34,34 @@ func CreateWebServer(logger *zerolog.Logger, settings *config.Settings) (*fiber.
 	return app, nil
 }
 
+// CreateEnclaveWebServer creates a new web server with the given logger and settings.
+func CreateEnclaveWebServer(logger *zerolog.Logger) (*fiber.App, error) {
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			return ErrorHandler(c, err, logger)
+		},
+		DisableStartupMessage: true,
+	})
+
+	app.Use(recover.New(recover.Config{
+		Next:              nil,
+		EnableStackTrace:  true,
+		StackTraceHandler: nil,
+	}))
+	app.Use(cors.New())
+	app.Get("/", HealthCheck)
+	app.Get("/forward", func(ctx *fiber.Ctx) error {
+		logger.Debug().Msg("Forward request received")
+		msg := ctx.Query("msg")
+		if msg == "" {
+			msg = "Hello, World!"
+		}
+		return ctx.JSON(map[string]string{"data": "Hello From The Enclave! Did you say: " + msg})
+	})
+
+	return app, nil
+}
+
 func forward(logger *zerolog.Logger, cid uint32, port uint32) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		msg := ctx.Query("msg")

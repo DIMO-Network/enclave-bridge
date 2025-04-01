@@ -3,21 +3,23 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"strconv"
 	"syscall"
 
-	"github.com/DIMO-Network/sample-enclave-api/internal/app"
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
+	"github.com/DIMO-Network/sample-enclave-api/pkg/server"
 	"github.com/DIMO-Network/shared"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/mdlayher/vsock"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"inet.af/tcpproxy"
 )
 
 // @title                       DIMO Fetch API
@@ -26,15 +28,7 @@ import (
 // @in                          header
 // @name                        Authorization
 func main() {
-	logger := zerolog.New(os.Stdout).With().Timestamp().Str("app", "fetch-api").Logger()
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, s := range info.Settings {
-			if s.Key == "vcs.revision" && len(s.Value) == 40 {
-				logger = logger.With().Str("commit", s.Value[:7]).Logger()
-				break
-			}
-		}
-	}
+	logger := server.DefaultLogger("sample-enclave-api")
 
 	// create a flag for the settings file
 	settingsFile := flag.String("settings", "settings.yaml", "settings file")
@@ -43,19 +37,15 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't load settings.")
 	}
-	if settings.LogLevel != "" {
-		lvl, err := zerolog.ParseLevel(settings.LogLevel)
-		if err != nil {
-			logger.Fatal().Err(err).Msg("Failed to parse log level.")
-		}
-		zerolog.SetGlobalLevel(lvl)
-	}
-	webServer, err := app.CreateWebServer(&logger, &settings)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to create web server.")
+	server.SetLevel(logger, settings.LogLevel)
+
+	vsockProxy := &VSockProxy{
+		CID:    settings.EnclaveCID,
+		Port:   settings.EnclavePort,
+		logger: logger,
 	}
 
-	monApp := CreateMonitoringServer(strconv.Itoa(settings.MonPort), &logger)
+	monApp := CreateMonitoringServer(strconv.Itoa(settings.MonPort), logger)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -63,9 +53,9 @@ func main() {
 	group, gCtx := errgroup.WithContext(ctx)
 
 	logger.Info().Str("port", strconv.Itoa(settings.MonPort)).Msgf("Starting monitoring server")
-	runFiber(gCtx, monApp, ":"+strconv.Itoa(settings.MonPort), group)
-	logger.Info().Str("port", strconv.Itoa(settings.Port)).Msgf("Starting web server")
-	runFiber(gCtx, webServer, ":"+strconv.Itoa(settings.Port), group)
+	server.RunFiber(gCtx, monApp, ":"+strconv.Itoa(settings.MonPort), group)
+	logger.Info().Str("port", strconv.Itoa(settings.Port)).Msgf("Starting proxy server")
+	runProxy(gCtx, vsockProxy, ":"+strconv.Itoa(settings.Port), group)
 
 	err = group.Wait()
 	if err != nil {
@@ -73,18 +63,15 @@ func main() {
 	}
 }
 
-func runFiber(ctx context.Context, fiberApp *fiber.App, addr string, group *errgroup.Group) {
+func runProxy(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
+	proxy := tcpproxy.Proxy{}
 	group.Go(func() error {
-		if err := fiberApp.Listen(addr); err != nil {
-			return fmt.Errorf("failed to start server: %w", err)
-		}
-		return nil
+		proxy.AddRoute(addr, target)
+		return proxy.Run()
 	})
 	group.Go(func() error {
 		<-ctx.Done()
-		if err := fiberApp.Shutdown(); err != nil {
-			return fmt.Errorf("failed to shutdown server: %w", err)
-		}
+		proxy.Close()
 		return nil
 	})
 }
@@ -95,4 +82,41 @@ func CreateMonitoringServer(port string, logger *zerolog.Logger) *fiber.App {
 	monApp.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 
 	return monApp
+}
+
+// VSockTarget implements tcpproxy.Target to forward connections to a VSock endpoint.
+type VSockProxy struct {
+	CID    uint32
+	Port   uint32
+	logger *zerolog.Logger
+}
+
+// HandleConn dial a vsock connection and copy data in both directions.
+func (v *VSockProxy) HandleConn(conn net.Conn) {
+	// Create a vsock connection to the target
+	vsockConn, err := vsock.Dial(v.CID, v.Port, nil)
+	if err != nil {
+		v.logger.Error().Err(err).Msgf("Failed to dial vsock CID %d, Port %d", v.CID, v.Port)
+		conn.Close()
+		return
+	}
+
+	v.logger.Info().Msgf("Forwarding TCP connection to vsock CID %d, Port %d", v.CID, v.Port)
+
+	// Start goroutines to copy data in both directions
+	// From TCP proxy to vsock server
+	go func() {
+		defer conn.Close()
+		defer vsockConn.Close()
+		_, err := io.Copy(vsockConn, conn)
+		if err != nil {
+			v.logger.Error().Err(err).Msg("Failed to copy data from TCP proxy to vsock server")
+		}
+	}()
+
+	// From vsock server to TCP client
+	_, err = io.Copy(conn, vsockConn)
+	if err != nil {
+		v.logger.Error().Err(err).Msg("Failed to copy data from vsock server to TCP client")
+	}
 }
