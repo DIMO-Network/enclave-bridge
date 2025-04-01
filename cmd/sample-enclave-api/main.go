@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"syscall"
 
@@ -26,12 +27,28 @@ import (
 // @name                        Authorization
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("app", "fetch-api").Logger()
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range info.Settings {
+			if s.Key == "vcs.revision" && len(s.Value) == 40 {
+				logger = logger.With().Str("commit", s.Value[:7]).Logger()
+				break
+			}
+		}
+	}
+
 	// create a flag for the settings file
 	settingsFile := flag.String("settings", "settings.yaml", "settings file")
 	flag.Parse()
 	settings, err := shared.LoadConfig[config.Settings](*settingsFile)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't load settings.")
+	}
+	if settings.LogLevel != "" {
+		lvl, err := zerolog.ParseLevel(settings.LogLevel)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to parse log level.")
+		}
+		zerolog.SetGlobalLevel(lvl)
 	}
 	webServer, err := app.CreateWebServer(&logger, &settings)
 	if err != nil {

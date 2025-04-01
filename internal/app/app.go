@@ -59,14 +59,14 @@ func forward(logger *zerolog.Logger, cid uint32, port uint32) fiber.Handler {
 		if _, err := unix.Write(fd, []byte(msg)); err != nil {
 			return fmt.Errorf("failed to write to socket: %w", err)
 		}
-		logger.Debug().Msgf("Wrote to socket %d.", fd)
+		logger.Debug().Msgf("Wrote to '%s' to socket %d.", msg, fd)
 
 		buf := make([]byte, 4096)
 		n, err := unix.Read(fd, buf)
 		if err != nil {
 			return fmt.Errorf("failed to read from socket: %w", err)
 		}
-		logger.Debug().Msgf("Read from socket %d.", fd)
+		logger.Debug().Msgf("Read from '%s' to socket %d.", string(buf[:n]), fd)
 
 		return ctx.JSON(map[string]string{"data": string(buf[:n])})
 	}
