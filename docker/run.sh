@@ -39,5 +39,9 @@ start() {
   done
 }
 
+healthcheck() {
+  cmd="nitro-cli describe-enclaves | jq -e '"'[ .[] | select( .EnclaveName == "'$ENCLAVE_NAME'" and .State == "RUNNING") ] | length == 1 '"'"
+  bash -c "$cmd"
+}
 
 "$@" 

@@ -114,11 +114,20 @@ jobs:
           platforms: linux/amd64
           tags: dimozone/sample-enclave-app:${{steps.tag.outputs.tag}}, dimozone/sample-enclave-app:latest
 
-      - name: Update Image Version in the worker HelmChart values.yaml
+      - name: Update enclave image version
         uses: fjogeleit/yaml-update-action@v0.16.0
         with:
           valueFile: "charts/sample-enclave-api/values.yaml"
           propertyPath: "enclave.image.tag"
+          value: ${{steps.tag.outputs.tag}}
+          branch: main
+          message: "Update Image Version to ${{steps.tag.outputs.tag}}"
+
+      - name: Update api image version
+        uses: fjogeleit/yaml-update-action@v0.16.0
+        with:
+          valueFile: "charts/sample-enclave-api/values-prod.yaml"
+          propertyPath: "web.image.tag"
           value: ${{steps.tag.outputs.tag}}
           branch: main
           message: "Update Image Version to ${{steps.tag.outputs.tag}}"
