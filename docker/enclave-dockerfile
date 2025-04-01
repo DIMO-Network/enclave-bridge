@@ -8,6 +8,7 @@ RUN amazon-linux-extras install aws-nitro-enclaves-cli -y && \
     rm -rf /var/cache/yum
 
 COPY docker/run.sh  /
+RUN chmod +x /run.sh
 COPY bin/sample-enclave-app.eif /eif/
 
 CMD ["/run.sh", "start"]
