@@ -1,26 +1,23 @@
 replicaCount: 1
-
 web:
   image:
-    tag: 7abe3b5
-
+    tag: 0.0.1
 enclave:
   image:
     tag: 30ba023
   env:
-    ENCLAVE_CPU_COUNT: "2"
-    ENCLAVE_MEMORY_SIZE: "1000"
-    ENCLAVE_CID: "16"
+    ENCLAVE_CPU_COUNT: '2'
+    ENCLAVE_MEMORY_SIZE: '1000'
+    ENCLAVE_CID: '16'
     AWS_REGION: us-east-2
-    ENCLAVE_DEBUG_MODE:
-
+    ENCLAVE_DEBUG_MODE: null
 ingress:
   enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/auth-tls-secret: ingress/cf-origin-ca
-    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: 'on'
+    nginx.ingress.kubernetes.io/enable-cors: 'true'
     nginx.ingress.kubernetes.io/cors-allow-origin: https://app.dimo.zone, https://admin.team.dimo.zone
     nginx.ingress.kubernetes.io/limit-rps: '50'
     external-dns.alpha.kubernetes.io/hostname: sample-enclave-api.dimo.zone
