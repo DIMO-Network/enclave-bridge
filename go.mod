@@ -3,7 +3,7 @@ module github.com/DIMO-Network/sample-enclave-api
 go 1.24
 
 require (
-	github.com/DIMO-Network/shared v0.12.9
+	github.com/DIMO-Network/shared v0.12.10
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/prometheus/client_golang v1.21.1
 	github.com/rs/zerolog v1.34.0

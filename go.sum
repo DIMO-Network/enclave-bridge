@@ -1,5 +1,5 @@
-github.com/DIMO-Network/shared v0.12.9 h1:I41R/d84WedhQERdT7Iu7Bq8OnmLLQormfQb9g+vl1M=
-github.com/DIMO-Network/shared v0.12.9/go.mod h1:lDHUKwwT2LW6Zvd42Nb33dXklRNTmfyOlbUNx2dQfGY=
+github.com/DIMO-Network/shared v0.12.10 h1:taiAs09lyfV34SpGjesNjd4ljbMcCKrm18rhG+SizaM=
+github.com/DIMO-Network/shared v0.12.10/go.mod h1:lDHUKwwT2LW6Zvd42Nb33dXklRNTmfyOlbUNx2dQfGY=
 github.com/DIMO-Network/yaml v0.1.0 h1:KQ3oKHUZETchR6Pxbmmol3e4ewrPv/q8cEwqxfwyZbU=
 github.com/DIMO-Network/yaml v0.1.0/go.mod h1:KkiehcbkVzH8Pf8f9dja8B2aW81gYYZSqfwzSj9yN68=
 github.com/andybalholm/brotli v1.1.1 h1:PR2pgnyFznKEugtsUo0xLdDop5SKXd5Qf5ysW+7XdTA=
