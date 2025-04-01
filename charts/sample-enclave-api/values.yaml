@@ -8,7 +8,7 @@ web:
   image:
     repository: dimozone/sample-enclave-api
     pullPolicy: IfNotPresent
-    tag: 516a3f4
+    tag: a456b62
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
