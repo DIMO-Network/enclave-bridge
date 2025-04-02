@@ -72,6 +72,13 @@ func main() {
 	runProxy(ctx, vsockProxy, ":"+strconv.Itoa(settings.Port), group)
 	logger.Info().Str("port", strconv.Itoa(int(settings.EnclavePort+1))).Msgf("Starting proxy client")
 	runProxyClient(ctx, vsockClientProxy, group)
+
+	ctxId, err = vsock.ContextID()
+	if err != nil {
+		logger.Warn().Err(err).Msg("Failed again to get context ID")
+	}
+	logger.Info().Msgf("Context ID2: %d", ctxId)
+
 	err = group.Wait()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to run servers.")
