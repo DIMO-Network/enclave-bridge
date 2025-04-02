@@ -1,14 +1,19 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
 	"github.com/DIMO-Network/sample-enclave-api/pkg/server"
@@ -44,23 +49,39 @@ func main() {
 		Port:   settings.EnclavePort,
 		logger: logger,
 	}
+	vsockClientProxy := &VSockClientProxy{
+		Port:   settings.EnclavePort,
+		logger: logger,
+	}
 
 	monApp := CreateMonitoringServer(strconv.Itoa(settings.MonPort), logger)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	ctxId, err := vsock.ContextID()
+	if err != nil {
+		logger.Warn().Err(err).Msg("Failed to get context ID")
+	}
+	logger.Info().Msgf("Context ID: %d", ctxId)
 
-	group, gCtx := errgroup.WithContext(ctx)
+	group, _ := errgroup.WithContext(ctx)
 
 	logger.Info().Str("port", strconv.Itoa(settings.MonPort)).Msgf("Starting monitoring server")
-	server.RunFiber(gCtx, monApp, ":"+strconv.Itoa(settings.MonPort), group)
+	server.RunFiber(ctx, monApp, ":"+strconv.Itoa(settings.MonPort), group)
 	logger.Info().Str("port", strconv.Itoa(settings.Port)).Msgf("Starting proxy server")
-	runProxy(gCtx, vsockProxy, ":"+strconv.Itoa(settings.Port), group)
-
+	runProxy(ctx, vsockProxy, ":"+strconv.Itoa(settings.Port), group)
+	logger.Info().Str("port", strconv.Itoa(int(settings.EnclavePort+1))).Msgf("Starting proxy client")
+	runProxyClient(ctx, vsockClientProxy, group)
 	err = group.Wait()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to run servers.")
 	}
+}
+
+func runProxyClient(ctx context.Context, proxy *VSockClientProxy, group *errgroup.Group) {
+	group.Go(func() error {
+		return proxy.ListenForTargetRequests(ctx)
+	})
 }
 
 func runProxy(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
@@ -103,20 +124,121 @@ func (v *VSockProxy) HandleConn(conn net.Conn) {
 
 	v.logger.Info().Msgf("Forwarding TCP connection to vsock CID %d, Port %d", v.CID, v.Port)
 
-	// Start goroutines to copy data in both directions
+	// Create error group for goroutine coordination
+	group, _ := errgroup.WithContext(context.Background())
+
 	// From TCP proxy to vsock server
-	go func() {
+	group.Go(func() error {
 		defer conn.Close()
-		defer vsockConn.Close()
 		_, err := io.Copy(vsockConn, conn)
 		if err != nil {
-			v.logger.Error().Err(err).Msg("Failed to copy data from TCP proxy to vsock server")
+			return fmt.Errorf("failed to copy data from TCP proxy to vsock server: %w", err)
 		}
-	}()
+		return nil
+	})
 
 	// From vsock server to TCP client
-	_, err = io.Copy(conn, vsockConn)
+	group.Go(func() error {
+		defer vsockConn.Close()
+		_, err := io.Copy(conn, vsockConn)
+		if err != nil {
+			return fmt.Errorf("failed to copy data from vsock server to TCP client: %w", err)
+		}
+		return nil
+	})
+
+	// Wait for either an error or context cancellation
+	if err := group.Wait(); err != nil {
+		v.logger.Error().Err(err).Msg("Connection error occurred")
+	}
+}
+
+type VSockClientProxy struct {
+	Port   uint32
+	logger *zerolog.Logger
+}
+
+// HandleConn dial a vsock connection and copy data in both directions.
+func (v *VSockClientProxy) HandleConn(ctx context.Context, vsockConn net.Conn) {
+	// Create a context with timeout for the entire operation
+	proxyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	// Create a buffered reader to read the target URL
+	reader := bufio.NewReader(vsockConn)
+
+	// Read the first line which should contain the target URL
+	targetLine, err := reader.ReadString('\n')
 	if err != nil {
-		v.logger.Error().Err(err).Msg("Failed to copy data from vsock server to TCP client")
+		v.logger.Error().Err(err).Msg("Failed to read target URL")
+		_ = vsockConn.Close()
+		return
+	}
+	// Trim whitespace and extract the target URL
+	targetAddress := strings.TrimSpace(targetLine)
+	v.logger.Info().Msgf("Received target request: %s", targetAddress)
+
+	// Use a dialer with context
+	dialer := &net.Dialer{
+		Timeout: 10 * time.Second,
+	}
+
+	targetConn, err := dialer.DialContext(proxyCtx, "tcp", targetAddress)
+	if err != nil {
+		v.logger.Error().Err(err).Msg("Failed to dial target service")
+		_ = vsockConn.Close()
+		return
+	}
+
+	// Create error group for goroutine coordination
+	group, _ := errgroup.WithContext(proxyCtx)
+
+	// From TCP target to vsock client
+	group.Go(func() error {
+		defer targetConn.Close()
+		_, err := io.Copy(vsockConn, targetConn)
+		if err != nil {
+			return fmt.Errorf("failed to copy data from TCP target to vsock client: %w", err)
+		}
+		return nil
+	})
+
+	// From vsock client to TCP target
+	group.Go(func() error {
+		defer vsockConn.Close()
+		_, err := io.Copy(targetConn, vsockConn)
+		if err != nil {
+			return fmt.Errorf("failed to copy data from vsock client to TCP target: %w", err)
+		}
+		return nil
+	})
+
+	// Wait for either an error or context cancellation
+	if err := group.Wait(); err != nil {
+		v.logger.Error().Err(err).Msg("Connection error occurred")
+	}
+}
+
+func (v *VSockClientProxy) ListenForTargetRequests(ctx context.Context) error {
+	listener, err := vsock.Listen(v.Port, nil)
+	if err != nil {
+		return fmt.Errorf("failed to listen for target requests: %w", err)
+	}
+	go func() {
+		<-ctx.Done()
+		listener.Close()
+	}()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+			v.logger.Error().Err(err).Msg("Failed to accept target request")
+			continue
+		}
+
+		go v.HandleConn(ctx, conn)
 	}
 }

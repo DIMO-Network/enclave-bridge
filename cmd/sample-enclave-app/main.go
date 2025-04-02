@@ -16,12 +16,8 @@ import (
 )
 
 const (
-	// backlog is the maximum number of pending connections to queue.
-	backlog = 5
 	// heartInterval is the interval to check if the enclave is still alive.
 	heartInterval = 10 * time.Second
-	// bufSize is the size of the buffer to receive messages.
-	bufSize = 4096
 )
 
 func main() {
@@ -43,12 +39,12 @@ func main() {
 	}
 	logger.Debug().Msgf("Listening on %s", listener.Addr())
 
-	enclaveApp, err := app.CreateEnclaveWebServer(logger)
+	enclaveApp, err := app.CreateEnclaveWebServer(logger, uint32(port))
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't create enclave web server.")
 	}
 
-	_ = enclave(ctx, port, logger)
+	heartbeatLog(ctx, logger)
 	group, gCtx := errgroup.WithContext(ctx)
 	server.RunFiberWithListener(gCtx, enclaveApp, listener, group)
 
@@ -58,31 +54,7 @@ func main() {
 	}
 }
 
-func enclave(ctx context.Context, port int, logger *zerolog.Logger) error {
-	// fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// logger.Debug().Msgf("Created socket %d.", fd)
-
-	// socketAddress := &unix.SockaddrVM{
-	// 	CID:  unix.VMADDR_CID_ANY,
-	// 	Port: uint32(port),
-	// }
-
-	// if err := unix.Bind(fd, socketAddress); err != nil {
-	// 	return err
-	// }
-
-	// logger.Debug().Msgf("Bound socket with a random address and port %d.", port)
-
-	// if err := unix.Listen(fd, backlog); err != nil {
-	// 	return err
-	// }
-
-	// logger.Debug().Msgf("Accepting requests with backlog %d.", backlog)
-
+func heartbeatLog(ctx context.Context, logger *zerolog.Logger) {
 	go func() {
 		t := time.NewTicker(heartInterval)
 
@@ -96,18 +68,6 @@ func enclave(ctx context.Context, port int, logger *zerolog.Logger) error {
 			}
 		}
 	}()
-
-	// for {
-	// 	select {
-	// 	case <-ctx.Done():
-	// 		return nil
-	// 	default:
-	// 		if err := accept(fd, logger); err != nil {
-	// 			logger.Err(err).Msg("Accept failed.")
-	// 		}
-	// 	}
-	// }
-	return nil
 }
 
 // func accept(fd int, logger *zerolog.Logger) error {
