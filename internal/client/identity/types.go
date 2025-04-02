@@ -25,8 +25,8 @@ const query = `
 	}
 `
 
-// graphQLResponse represents the structure of the GraphQL response.
-type graphQLResponse struct {
+// GraphQLResponse represents the structure of the GraphQL response.
+type GraphQLResponse struct {
 	Data   dataField      `json:"data"`
 	Errors []graphQLError `json:"errors"`
 }
