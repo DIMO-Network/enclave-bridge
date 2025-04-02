@@ -229,8 +229,10 @@ func (v *VSockClientProxy) HandleConn(ctx context.Context, vsockConn net.Conn) {
 func (v *VSockClientProxy) ListenForTargetRequests(ctx context.Context) error {
 	listener, err := vsock.Listen(v.Port, nil)
 	if err != nil {
+		v.logger.Error().Err(err).Msg("Failed to listen for target requests")
 		return fmt.Errorf("failed to listen for target requests: %w", err)
 	}
+	v.logger.Info().Msgf("Listening for target requests on port %d", v.Port)
 	go func() {
 		<-ctx.Done()
 		listener.Close()

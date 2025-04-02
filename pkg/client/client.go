@@ -9,7 +9,7 @@ import (
 	"github.com/mdlayher/vsock"
 )
 
-const defaultHostCID = 2
+const defaultHostCID = 3
 
 func NewHTTPClient(port uint32) *http.Client {
 	httpClient := &http.Client{
