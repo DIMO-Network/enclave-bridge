@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	"io"
-	"net"
 	"os"
 	"os/signal"
 	"strconv"
@@ -40,11 +37,7 @@ func main() {
 	}
 	server.SetLevel(logger, settings.LogLevel)
 
-	vsockProxy := &VSockProxy{
-		CID:    settings.EnclaveCID,
-		Port:   settings.EnclavePort,
-		logger: logger,
-	}
+	vsockProxy := NewServerTunnel(settings.EnclaveCID, settings.EnclavePort, logger)
 	vsockClientProxy := &ClientTunnel{
 		Port:   settings.EnclavePort,
 		Logger: logger,
@@ -106,52 +99,4 @@ func CreateMonitoringServer(port string, logger *zerolog.Logger) *fiber.App {
 	monApp.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 
 	return monApp
-}
-
-// VSockTarget implements tcpproxy.Target to forward connections to a VSock endpoint.
-type VSockProxy struct {
-	CID    uint32
-	Port   uint32
-	logger *zerolog.Logger
-}
-
-// HandleConn dial a vsock connection and copy data in both directions.
-func (v *VSockProxy) HandleConn(conn net.Conn) {
-	// Create a vsock connection to the target
-	vsockConn, err := vsock.Dial(v.CID, v.Port, nil)
-	if err != nil {
-		v.logger.Error().Err(err).Msgf("Failed to dial vsock CID %d, Port %d", v.CID, v.Port)
-		conn.Close()
-		return
-	}
-
-	v.logger.Info().Msgf("Forwarding TCP connection to vsock CID %d, Port %d", v.CID, v.Port)
-
-	// Create error group for goroutine coordination
-	group, _ := errgroup.WithContext(context.Background())
-
-	// From TCP proxy to vsock server
-	group.Go(func() error {
-		defer conn.Close()
-		_, err := io.Copy(vsockConn, conn)
-		if err != nil {
-			return fmt.Errorf("failed to copy data from TCP proxy to vsock server: %w", err)
-		}
-		return nil
-	})
-
-	// From vsock server to TCP client
-	group.Go(func() error {
-		defer vsockConn.Close()
-		_, err := io.Copy(conn, vsockConn)
-		if err != nil {
-			return fmt.Errorf("failed to copy data from vsock server to TCP client: %w", err)
-		}
-		return nil
-	})
-
-	// Wait for either an error or context cancellation
-	if err := group.Wait(); err != nil {
-		v.logger.Error().Err(err).Msg("Connection error occurred")
-	}
 }

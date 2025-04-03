@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sys/unix"
 )
+
+const defaultHostCID = 3
 
 type ClientTunnel struct {
 	Port           uint32
@@ -32,14 +34,14 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 	reader := bufio.NewReader(vsockConn)
 
 	// Read the first line which should contain the target URL
-	targetLine, err := reader.ReadBytes('\n')
+	targetLine, err := reader.ReadString('\n')
 	if err != nil {
 		c.Logger.Error().Err(err).Msg("Failed to read target URL")
 		_ = vsockConn.Close()
 		return
 	}
 	// Remove the newline character
-	targetAddress := string(targetLine[:len(targetLine)-1])
+	targetAddress := strings.TrimSpace(targetLine)
 	c.Logger.Info().Msgf("Received target request: %s", targetAddress)
 
 	// Use a dialer with context
@@ -83,7 +85,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 
 // ListenForTargetRequests listens for target requests on the vsock port.
 func (c *ClientTunnel) ListenForTargetRequests(ctx context.Context) error {
-	listener, err := vsock.ListenContextID(unix.VMADDR_CID_ANY, c.Port, nil)
+	listener, err := vsock.ListenContextID(defaultHostCID, c.Port, nil)
 	if err != nil {
 		c.Logger.Error().Err(err).Msg("Failed to listen for target requests")
 		return fmt.Errorf("failed to listen for target requests: %w", err)
