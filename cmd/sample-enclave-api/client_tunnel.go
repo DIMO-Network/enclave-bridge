@@ -12,6 +12,7 @@ import (
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 )
 
 type ClientTunnel struct {
@@ -19,8 +20,6 @@ type ClientTunnel struct {
 	RequestTimeout time.Duration
 	Logger         *zerolog.Logger
 }
-
-const DefaultHostCID = 3
 
 // HandleConn dial a vsock connection and copy data in both directions.
 func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
@@ -84,7 +83,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 
 // ListenForTargetRequests listens for target requests on the vsock port.
 func (c *ClientTunnel) ListenForTargetRequests(ctx context.Context) error {
-	listener, err := vsock.ListenContextID(DefaultHostCID, c.Port, nil)
+	listener, err := vsock.ListenContextID(unix.VMADDR_CID_ANY, c.Port, nil)
 	if err != nil {
 		c.Logger.Error().Err(err).Msg("Failed to listen for target requests")
 		return fmt.Errorf("failed to listen for target requests: %w", err)
