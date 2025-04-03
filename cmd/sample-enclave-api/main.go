@@ -47,7 +47,7 @@ func main() {
 	}
 	vsockClientProxy := &ClientTunnel{
 		Port:   settings.EnclavePort,
-		logger: logger,
+		Logger: logger,
 	}
 
 	monApp := CreateMonitoringServer(strconv.Itoa(settings.MonPort), logger)
