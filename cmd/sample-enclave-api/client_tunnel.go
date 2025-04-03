@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/mdlayher/vsock"
@@ -15,34 +14,41 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const defaultHostCID = 3
+const defaultHostCID = 17
 
 type ClientTunnel struct {
-	Port           uint32
-	RequestTimeout time.Duration
-	Logger         *zerolog.Logger
+	port           uint32
+	requestTimeout time.Duration
+	logger         *zerolog.Logger
+}
+
+func NewClientTunnel(port uint32, requestTimeout time.Duration, logger *zerolog.Logger) *ClientTunnel {
+	return &ClientTunnel{
+		port:           port,
+		requestTimeout: requestTimeout,
+		logger:         logger,
+	}
 }
 
 // HandleConn dial a vsock connection and copy data in both directions.
 func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 	defer vsockConn.Close()
 	// Create a context with timeout for the entire operation
-	requestCtx, cancel := context.WithTimeout(ctx, c.RequestTimeout)
+	requestCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
 
 	// Create a buffered reader to read the target URL
 	reader := bufio.NewReader(vsockConn)
 
 	// Read the first line which should contain the target URL
-	targetLine, err := reader.ReadString('\n')
+	targetLine, err := reader.ReadBytes('\n')
 	if err != nil {
-		c.Logger.Error().Err(err).Msg("Failed to read target URL")
-		_ = vsockConn.Close()
+		c.logger.Error().Err(err).Msg("Failed to read target URL")
 		return
 	}
 	// Remove the newline character
-	targetAddress := strings.TrimSpace(targetLine)
-	c.Logger.Info().Msgf("Received target request: %s", targetAddress)
+	targetAddress := string(targetLine[:len(targetLine)-1])
+	c.logger.Info().Msgf("Received target request: %s", targetAddress)
 
 	// Use a dialer with context
 	dialer := &net.Dialer{
@@ -51,7 +57,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 
 	targetConn, err := dialer.DialContext(requestCtx, "tcp", targetAddress)
 	if err != nil {
-		c.Logger.Error().Err(err).Msg("Failed to dial target service")
+		c.logger.Error().Err(err).Msg("Failed to dial target service")
 		return
 	}
 	defer targetConn.Close()
@@ -79,18 +85,18 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 
 	// Wait for either an error or context cancellation
 	if err := group.Wait(); err != nil {
-		c.Logger.Error().Err(err).Msg("Connection error occurred")
+		c.logger.Error().Err(err).Msg("Connection error occurred")
 	}
 }
 
 // ListenForTargetRequests listens for target requests on the vsock port.
 func (c *ClientTunnel) ListenForTargetRequests(ctx context.Context) error {
-	listener, err := vsock.ListenContextID(defaultHostCID, c.Port, nil)
+	listener, err := vsock.ListenContextID(defaultHostCID, c.port, nil)
 	if err != nil {
-		c.Logger.Error().Err(err).Msg("Failed to listen for target requests")
+		c.logger.Error().Err(err).Msg("Failed to listen for target requests")
 		return fmt.Errorf("failed to listen for target requests: %w", err)
 	}
-	c.Logger.Info().Msgf("Listening for target requests on port %d", c.Port)
+	c.logger.Info().Msgf("Listening for target requests on port %d", c.port)
 	go func() {
 		<-ctx.Done()
 		listener.Close()
@@ -102,7 +108,7 @@ func (c *ClientTunnel) ListenForTargetRequests(ctx context.Context) error {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
-			c.Logger.Error().Err(err).Msg("Failed to accept target request")
+			c.logger.Error().Err(err).Msg("Failed to accept target request")
 			continue
 		}
 

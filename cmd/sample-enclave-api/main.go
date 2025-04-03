@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
 	"github.com/DIMO-Network/sample-enclave-api/pkg/server"
@@ -38,10 +39,7 @@ func main() {
 	server.SetLevel(logger, settings.LogLevel)
 
 	vsockProxy := NewServerTunnel(settings.EnclaveCID, settings.EnclavePort, logger)
-	vsockClientProxy := &ClientTunnel{
-		Port:   settings.EnclavePort,
-		Logger: logger,
-	}
+	vsockClientProxy := NewClientTunnel(settings.EnclavePort, 5*time.Minute, logger)
 
 	monApp := CreateMonitoringServer(strconv.Itoa(settings.MonPort), logger)
 
