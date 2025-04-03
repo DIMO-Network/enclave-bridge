@@ -14,7 +14,6 @@ import (
 	"github.com/DIMO-Network/shared"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
-	"github.com/mdlayher/vsock"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -45,11 +44,6 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	ctxId, err := vsock.ContextID()
-	if err != nil {
-		logger.Warn().Err(err).Msg("Failed to get context ID")
-	}
-	logger.Info().Msgf("Context ID: %d", ctxId)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
@@ -59,12 +53,6 @@ func main() {
 	runProxy(groupCtx, vsockProxy, ":"+strconv.Itoa(settings.Port), group)
 	logger.Info().Str("port", strconv.Itoa(int(settings.EnclavePort+1))).Msgf("Starting proxy client")
 	runProxyClient(groupCtx, vsockClientProxy, group)
-
-	ctxId, err = vsock.ContextID()
-	if err != nil {
-		logger.Warn().Err(err).Msg("Failed again to get context ID")
-	}
-	logger.Info().Msgf("Context ID2: %d", ctxId)
 
 	err = group.Wait()
 	if err != nil {
