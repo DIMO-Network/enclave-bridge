@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const defaultHostCID = 17
+const defaultHostCID = 3
 
 type ClientTunnel struct {
 	port           uint32
