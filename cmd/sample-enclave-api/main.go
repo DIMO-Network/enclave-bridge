@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 	"inet.af/tcpproxy"
 )
 
@@ -64,14 +65,14 @@ func main() {
 	}
 	logger.Info().Msgf("Context ID: %d", ctxId)
 
-	group, _ := errgroup.WithContext(ctx)
+	group, groupCtx := errgroup.WithContext(ctx)
 
 	logger.Info().Str("port", strconv.Itoa(settings.MonPort)).Msgf("Starting monitoring server")
-	server.RunFiber(ctx, monApp, ":"+strconv.Itoa(settings.MonPort), group)
+	server.RunFiber(groupCtx, monApp, ":"+strconv.Itoa(settings.MonPort), group)
 	logger.Info().Str("port", strconv.Itoa(settings.Port)).Msgf("Starting proxy server")
-	runProxy(ctx, vsockProxy, ":"+strconv.Itoa(settings.Port), group)
+	runProxy(groupCtx, vsockProxy, ":"+strconv.Itoa(settings.Port), group)
 	logger.Info().Str("port", strconv.Itoa(int(settings.EnclavePort+1))).Msgf("Starting proxy client")
-	runProxyClient(ctx, vsockClientProxy, group)
+	runProxyClient(groupCtx, vsockClientProxy, group)
 
 	ctxId, err = vsock.ContextID()
 	if err != nil {
@@ -227,7 +228,7 @@ func (v *VSockClientProxy) HandleConn(ctx context.Context, vsockConn net.Conn) {
 }
 
 func (v *VSockClientProxy) ListenForTargetRequests(ctx context.Context) error {
-	listener, err := vsock.Listen(v.Port, nil)
+	listener, err := vsock.ListenContextID(unix.VMADDR_CID_ANY, v.Port, nil)
 	if err != nil {
 		v.logger.Error().Err(err).Msg("Failed to listen for target requests")
 		return fmt.Errorf("failed to listen for target requests: %w", err)
