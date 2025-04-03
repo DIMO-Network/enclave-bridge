@@ -38,7 +38,7 @@ enclave:
   image:
     repository: dimozone/sample-enclave-app
     pullPolicy: IfNotPresent
-    tag: fdd4cfb
+    tag: d41e4fa
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
