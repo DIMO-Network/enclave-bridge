@@ -19,7 +19,7 @@ func CreateEnclaveWebServer(logger *zerolog.Logger, port uint32) (*fiber.App, er
 		},
 		DisableStartupMessage: true,
 	})
-	identClient, err := identity.NewService("https://identity-api.dimo.zone", port+1)
+	identClient, err := identity.NewService("https://identity-api.dimo.zone", port)
 	if err != nil {
 		return nil, err
 	}
