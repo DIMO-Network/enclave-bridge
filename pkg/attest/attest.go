@@ -1,29 +1,27 @@
 package attest
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
-	"os"
-	"syscall"
-	"unsafe"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/hf/nsm"
-	"github.com/hf/nsm/ioc"
 	"github.com/hf/nsm/request"
 	"github.com/rs/zerolog"
 )
 
-type NSMRawDocument struct {
-	RawDocument0 []byte `json:"rawDocument0"`
-	RawDocument1 []byte `json:"rawDocument1"`
+type NSMResponse struct {
+	RawAttestation []byte              `json:"rawAttestation"`
+	Attestation    COSESign1           `json:"attestation"`
+	Document       AttestationDocument `json:"document"`
+	Certificate    *x509.Certificate   `json:"certificate"`
+	IsValid        bool                `json:"isValid"`
 }
 
-func GetNSMAttesation(logger *zerolog.Logger) (*NSMRawDocument, error) {
+func GetNSMAttesation(logger *zerolog.Logger) (*NSMResponse, error) {
 	// create private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -36,17 +34,27 @@ func GetNSMAttesation(logger *zerolog.Logger) (*NSMRawDocument, error) {
 	} else {
 		logger.Info().Str("rawNsmDocument0", fmt.Sprintf("%v", rawNsmDocument0)).Str("rawNsmDocument0_base64", base64.StdEncoding.EncodeToString(rawNsmDocument0)).Msg("NSM document0")
 	}
-	rawNsmDocument1, err := getNSMDocument1(privateKey)
+
+	coseSign1, attestDoc, err := getSignatureAndDocument(rawNsmDocument0)
 	if err != nil {
-		logger.Error().Msgf("failed to get NSM document: %w", err)
-	} else {
-		logger.Info().Str("rawNsmDocument1", fmt.Sprintf("%v", rawNsmDocument1)).Str("rawNsmDocument1_base64", base64.StdEncoding.EncodeToString(rawNsmDocument1)).Msg("NSM document1")
+		logger.Error().Msgf("failed to get signature and document: %w", err)
+	}
+	cert, err := x509.ParseCertificate(attestDoc.Certificate)
+	if err != nil {
+		logger.Error().Msgf("failed to parse certificate: %w", err)
 	}
 
+	err = validateAttestation(coseSign1)
+	if err != nil {
+		logger.Error().Msgf("failed to validate attestation: %w", err)
+	}
 	// return the document
-	return &NSMRawDocument{
-		RawDocument0: rawNsmDocument0,
-		RawDocument1: rawNsmDocument1,
+	return &NSMResponse{
+		RawAttestation: rawNsmDocument0,
+		Attestation:    coseSign1,
+		Document:       attestDoc,
+		Certificate:    cert,
+		IsValid:        err == nil,
 	}, nil
 
 }
@@ -79,64 +87,21 @@ func getNSMDocument0(privateKey *rsa.PrivateKey) ([]byte, error) {
 	return res.Attestation.Document, nil
 }
 
-func getNSMDocument1(privateKey *rsa.PrivateKey) ([]byte, error) {
-	// create a new session
-	nsmFd, err := os.Open("/dev/nsm")
-	if err != nil {
-		return nil, fmt.Errorf("failed to open NSM device: %w", err)
-	}
-	defer nsmFd.Close()
-
-	// create a new attestation request
-	req := &request.Attestation{
-		PublicKey: x509.MarshalPKCS1PublicKey(&privateKey.PublicKey),
-	}
-	var reqb bytes.Buffer
-	encoder := cbor.NewEncoder(&reqb)
-	err = encoder.Encode(req.Encoded())
-	if nil != err {
-		return nil, fmt.Errorf("failed to encode attestation request: %w", err)
-	}
-	res := make([]byte, 0x3000)
-	res, err = send(nsmFd.Fd(), reqb.Bytes(), res)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send attestation request: %w", err)
+// decode NSM Attest rersponse
+func getSignatureAndDocument(rawDoc []byte) (COSESign1, AttestationDocument, error) {
+	// First try to unmarshal as COSESign1
+	var coseSign1 COSESign1
+	if err := cbor.Unmarshal(rawDoc, &coseSign1); err != nil {
+		fmt.Printf("Error unmarshaling document 0 as COSESign1: %v\n", err)
+		return COSESign1{}, AttestationDocument{}, fmt.Errorf("error unmarshaling document 0 as COSESign1: %v", err)
 	}
 
-	return res, nil
-}
-func send(fd uintptr, req []byte, res []byte) ([]byte, error) {
-	iovecReq := syscall.Iovec{
-		Base: &req[0],
-	}
-	iovecReq.SetLen(len(req))
-
-	iovecRes := syscall.Iovec{
-		Base: &res[0],
-	}
-	iovecRes.SetLen(len(res))
-
-	type ioctlMessage struct {
-		Request  syscall.Iovec
-		Response syscall.Iovec
+	// Then try to unmarshal the payload as AttestationDocument
+	var attestDoc AttestationDocument
+	if err := cbor.Unmarshal(coseSign1.Payload, &attestDoc); err != nil {
+		fmt.Printf("Error unmarshaling document 0 payload: %v\n", err)
+		return COSESign1{}, AttestationDocument{}, fmt.Errorf("error unmarshaling document 0 payload: %v", err)
 	}
 
-	msg := ioctlMessage{
-		Request:  iovecReq,
-		Response: iovecRes,
-	}
-	const ioctlMagic = 0x0A
-
-	_, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		fd,
-		uintptr(ioc.Command(ioc.READ|ioc.WRITE, ioctlMagic, 0, uint(unsafe.Sizeof(msg)))),
-		uintptr(unsafe.Pointer(&msg)),
-	)
-
-	if 0 != err {
-		return nil, fmt.Errorf("failed to send attestation request: %w", err)
-	}
-
-	return res[:msg.Response.Len], nil
+	return coseSign1, attestDoc, nil
 }
