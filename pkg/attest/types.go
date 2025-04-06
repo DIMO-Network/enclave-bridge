@@ -1,17 +1,15 @@
 package attest
 
-import "github.com/fxamacker/cbor/v2"
-
-// COSESign1 represents a COSE_Sign1 message structure
+// COSESign1 represents a COSE_Sign1 message structure.
 type COSESign1 struct {
 	_           struct{} `cbor:",toarray"`
-	Protected   cbor.RawMessage
-	Unprotected cbor.RawMessage
-	Payload     cbor.RawMessage
-	Signature   cbor.RawMessage
+	Protected   []byte
+	Unprotected map[string]interface{}
+	Payload     []byte
+	Signature   []byte
 }
 
-// AttestationDocument represents the attestation document structure
+// AttestationDocument represents the attestation document structure.
 type AttestationDocument struct {
 	// ModuleID is the issuing NSM ID
 	ModuleID string `cbor:"module_id"`
