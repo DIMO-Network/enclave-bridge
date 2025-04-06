@@ -1,12 +1,14 @@
 package attest
 
+import "github.com/fxamacker/cbor/v2"
+
 // COSESign1 represents a COSE_Sign1 message structure
 type COSESign1 struct {
 	_           struct{} `cbor:",toarray"`
-	Protected   []byte
-	Unprotected map[interface{}]interface{}
-	Payload     []byte
-	Signature   []byte
+	Protected   cbor.RawMessage
+	Unprotected cbor.RawMessage
+	Payload     cbor.RawMessage
+	Signature   cbor.RawMessage
 }
 
 // AttestationDocument represents the attestation document structure

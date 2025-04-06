@@ -11,7 +11,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-// validateAttestation performs syntactic, semantic and cryptographic validation of the attestation document
+// validateAttestation performs syntactic, semantic and cryptographic validation of the attestation document.
 func validateAttestation(coseSign1 COSESign1) error {
 	// Syntactic validation
 	if err := validateSyntactic(coseSign1); err != nil {
@@ -31,7 +31,7 @@ func validateAttestation(coseSign1 COSESign1) error {
 	return nil
 }
 
-// validateSyntactic performs syntactic validation of the attestation document
+// validateSyntactic performs syntactic validation of the attestation document.
 func validateSyntactic(coseSign1 COSESign1) error {
 	// Validate protected header
 	if len(coseSign1.Protected) != 4 {
@@ -64,7 +64,7 @@ func validateSyntactic(coseSign1 COSESign1) error {
 	return nil
 }
 
-// validateSemantic performs semantic validation of the attestation document
+// validateSemantic performs semantic validation of the attestation document.
 func validateSemantic(payload []byte) error {
 	// Parse the payload as an AttestationDocument
 	var attestDoc AttestationDocument
@@ -100,7 +100,7 @@ func validateSemantic(payload []byte) error {
 	return nil
 }
 
-// validateCertificateChain validates the certificate chain
+// validateCertificateChain validates the certificate chain.
 func validateCertificateChain(certBytes []byte, caBundle [][]byte) error {
 	// Parse the certificate
 	cert, err := x509.ParseCertificate(certBytes)
@@ -129,7 +129,7 @@ func validateCertificateChain(certBytes []byte, caBundle [][]byte) error {
 	return nil
 }
 
-// validateCryptographic performs cryptographic validation of the attestation document
+// validateCryptographic performs cryptographic validation of the attestation document.
 func validateCryptographic(coseSign1 COSESign1) error {
 	// Parse the certificate from the payload
 	var attestDoc AttestationDocument

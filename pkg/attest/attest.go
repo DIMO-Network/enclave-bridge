@@ -21,6 +21,7 @@ type NSMResponse struct {
 	IsValid        bool                `json:"isValid"`
 }
 
+// GetNSMAttesation gets the NSM attestation.
 func GetNSMAttesation(logger *zerolog.Logger) (*NSMResponse, error) {
 	// create private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
