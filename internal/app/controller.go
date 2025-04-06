@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/DIMO-Network/sample-enclave-api/internal/client/identity"
+	"github.com/DIMO-Network/sample-enclave-api/pkg/attest"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )
@@ -31,4 +32,14 @@ func (c *Controller) GetVehicleInfo(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.JSON(vehicleInfo)
+}
+
+func (c *Controller) GetNSMAttestations(ctx *fiber.Ctx) error {
+	attestations, err := attest.GetNSMAttesation(c.logger)
+	if err != nil {
+		c.logger.Error().Err(err).Msg("Failed to get NSM attestations")
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to get NSM attestations")
+	}
+
+	return ctx.JSON(attestations)
 }

@@ -43,6 +43,7 @@ func CreateEnclaveWebServer(logger *zerolog.Logger, port uint32) (*fiber.App, er
 		return ctx.JSON(map[string]string{"data": "Hello From The Enclave! Did you say: " + msg})
 	})
 	app.Get("/vehicle/:tokenId", ctrl.GetVehicleInfo)
+	app.Get("/nsm-attestations", ctrl.GetNSMAttestations)
 	return app, nil
 }
 
