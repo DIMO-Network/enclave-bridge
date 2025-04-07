@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 set -xe
-readonly ENCLAVE_NAME="sample-enclave-app"
+readonly ENCLAVE_NAME=${ENCLAVE_NAME:-"enclave-app"}
 readonly EIF_PATH="/eif/$ENCLAVE_NAME.eif"
 
 ENCLAVE_CPU_COUNT=${ENCLAVE_CPU_COUNT:-1}

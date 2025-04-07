@@ -8,14 +8,12 @@ on:
 
 jobs:
   build-app:
-    name: build-runtime
+    name: build-app
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
@@ -30,7 +28,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/runtime-dockerfile
+          file: ./docker/app/Dockerfile
           push: true
           load: false
           platforms: linux/amd64
@@ -40,89 +38,30 @@ jobs:
     name: build-enclave
     runs-on: [self-hosted]
     needs: build-app
-    container:
-      image: dimozone/nitro-enclave-builder:latest
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-      volumes:
-        - /node20217:/node20217
-        - /node20217:/__e/node20
-    steps:
-      - name: Install dependencies
-        run: yum install -y curl git tar gunzip xz wget
-      - name: Print GLIBC version
-        run: ldd --version
-      - name: Install Node.js 20 glibc2.17
-        run: |
-          curl -LO https://unofficial-builds.nodejs.org/download/release/v20.9.0/node-v20.9.0-linux-x64-glibc-217.tar.xz
-          tar -xf node-v20.9.0-linux-x64-glibc-217.tar.xz --strip-components 1 -C /node20217
-          ldd /__e/node20/bin/node
-      - uses: actions/checkout@v4
-      - name: Get short SHA
-        id: slug
-        run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
-      - name: Create bin directory
-        run: mkdir -p bin
-      - name: Build enclave
-        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{ steps.slug.outputs.sha7 }} --output-file bin/sample-enclave-app.eif
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sample-enclave-app
-          path: bin/sample-enclave-app.eif
-
-  build-final-image:
-    # The type of runner that the job will run on
-    name: build-final-image
-    runs-on: [self-hosted]
-    needs: build-enclave
     steps:
       - uses: actions/checkout@v4
-
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-        
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2   
- 
+      
       - name: Get short SHA
         id: slug
         run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
-      
-      - uses: actions/download-artifact@v4
-        with:
-          name: sample-enclave-app
-          path: bin/sample-enclave-app.eif
 
-      - name: Display structure of downloaded files
-        run: ls -R
-
-      - name: Build and push
+      - name: Build and push enclave app
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/enclave-dockerfile
+          file: ./docker/enclave-runner/Dockerfile
           push: true
+          load: false
+          build-args: |
+            ENCLAVE_NAME=sample-enclave-runtime
+            ENCLAVE_TAG=${GITHUB_SHA}
+            ENCLAVE_IMAGE=dimozone/sample-enclave-runtime
           platforms: linux/amd64
           tags: dimozone/sample-enclave-app:${{ steps.slug.outputs.sha7 }}, dimozone/sample-enclave-app:latest
-
-      - name: Update enclave image version
-        uses: fjogeleit/yaml-update-action@v0.16.0
-        with:
-          valueFile: "charts/sample-enclave-api/values.yaml"
-          propertyPath: "enclave.image.tag"
-          value: ${{ steps.slug.outputs.sha7 }}
-          branch: main
-          message: "Update Image Version to ${{ steps.slug.outputs.sha7 }}"
-
-      - name: Update api image version
-        uses: fjogeleit/yaml-update-action@v0.16.0
-        with:
-          valueFile: "charts/sample-enclave-api/values.yaml"
-          propertyPath: "web.image.tag"
-          value: ${{ steps.slug.outputs.sha7 }}
-          branch: main
-          message: "Update Image Version to ${{ steps.slug.outputs.sha7 }}"

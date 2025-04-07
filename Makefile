@@ -58,8 +58,9 @@ lint: ## run linter
 	@PATH=$$PATH golangci-lint run --timeout 10m
 
 docker: dep ## build docker image
-	@docker build -f ./Dockerfile . -t dimozone/$(BIN_NAME):$(VER_CUT)
+	@docker build -f ./docker/dockerfile . -t dimozone/$(BIN_NAME):$(VER_CUT)
 	@docker tag dimozone/$(BIN_NAME):$(VER_CUT) dimozone/$(BIN_NAME):latest
+
 
 tools-golangci-lint: ## install golangci-lint
 	@mkdir -p $(PATHINSTBIN)
