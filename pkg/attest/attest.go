@@ -4,11 +4,9 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"time"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/hf/nitrite"
 	"github.com/hf/nsm"
 	"github.com/hf/nsm/request"
@@ -31,21 +29,19 @@ func GetNSMAttesation(logger *zerolog.Logger) (*NSMResponse, error) {
 		return nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
 	// call nsm with private key
-	rawNsmDocument0, err := getNSMDocument0(privateKey)
+	attesationDocument, err := getNSMDocument(privateKey)
 	if err != nil {
-		logger.Error().Msgf("failed to get NSM document: %w", err)
-	} else {
-		logger.Info().Str("rawNsmDocument0", fmt.Sprintf("%v", rawNsmDocument0)).Str("rawNsmDocument0_base64", base64.StdEncoding.EncodeToString(rawNsmDocument0)).Msg("NSM document0")
+		return nil, fmt.Errorf("failed to get NSM document: %w", err)
 	}
 
-	res, err := nitrite.Verify(rawNsmDocument0, nitrite.VerifyOptions{CurrentTime: time.Now()})
+	res, err := nitrite.Verify(attesationDocument, nitrite.VerifyOptions{CurrentTime: time.Now()})
 	if err != nil {
-		logger.Error().Msgf("failed to verify nsm attestation document: %w", err)
+		return nil, fmt.Errorf("failed to verify nsm attestation document: %w", err)
 	}
 
 	// return the document
 	return &NSMResponse{
-		RawAttestation: rawNsmDocument0,
+		RawAttestation: attesationDocument,
 		COSESign1:      res.COSESign1,
 		Document:       res.Document,
 		Certificate:    res.Certificates[0],
@@ -54,7 +50,7 @@ func GetNSMAttesation(logger *zerolog.Logger) (*NSMResponse, error) {
 
 }
 
-func getNSMDocument0(privateKey *rsa.PrivateKey) ([]byte, error) {
+func getNSMDocument(privateKey *rsa.PrivateKey) ([]byte, error) {
 	// create a new session
 	session, err := nsm.OpenDefaultSession()
 	if err != nil {
@@ -80,23 +76,4 @@ func getNSMDocument0(privateKey *rsa.PrivateKey) ([]byte, error) {
 
 	// return the document
 	return res.Attestation.Document, nil
-}
-
-// decode NSM Attest rersponse
-func getSignatureAndDocument(rawDoc []byte) (COSESign1, AttestationDocument, error) {
-	// First try to unmarshal as COSESign1
-	var coseSign1 COSESign1
-	if err := cbor.Unmarshal(rawDoc, &coseSign1); err != nil {
-		fmt.Printf("Error unmarshaling document 0 as COSESign1: %v\n", err)
-		return COSESign1{}, AttestationDocument{}, fmt.Errorf("error unmarshaling document 0 as COSESign1: %v", err)
-	}
-
-	// Then try to unmarshal the payload as AttestationDocument
-	var attestDoc AttestationDocument
-	if err := cbor.Unmarshal(coseSign1.Payload, &attestDoc); err != nil {
-		fmt.Printf("Error unmarshaling document 0 payload: %v\n", err)
-		return COSESign1{}, AttestationDocument{}, fmt.Errorf("error unmarshaling document 0 payload: %v", err)
-	}
-
-	return coseSign1, attestDoc, nil
 }
