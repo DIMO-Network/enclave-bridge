@@ -6,6 +6,7 @@ require (
 	github.com/DIMO-Network/shared v0.12.10
 	github.com/fxamacker/cbor/v2 v2.8.0
 	github.com/gofiber/fiber/v2 v2.52.6
+	github.com/hf/nitrite v0.0.0-20241225144000-c2d5d3c4f303
 	github.com/hf/nsm v0.0.0-20220930140112-cd181bd646b9
 	github.com/mdlayher/vsock v1.2.1
 	github.com/prometheus/client_golang v1.21.1

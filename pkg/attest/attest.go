@@ -6,19 +6,21 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/hf/nitrite"
 	"github.com/hf/nsm"
 	"github.com/hf/nsm/request"
 	"github.com/rs/zerolog"
 )
 
 type NSMResponse struct {
-	RawAttestation []byte              `json:"rawAttestation"`
-	Attestation    COSESign1           `json:"attestation"`
-	Document       AttestationDocument `json:"document"`
-	Certificate    *x509.Certificate   `json:"certificate"`
-	IsValid        bool                `json:"isValid"`
+	RawAttestation []byte            `json:"rawAttestation"`
+	COSESign1      []byte            `json:"coseSign1"`
+	Document       *nitrite.Document `json:"document"`
+	Certificate    *x509.Certificate `json:"certificate"`
+	IsValid        bool              `json:"isValid"`
 }
 
 // GetNSMAttesation gets the NSM attestation.
@@ -36,25 +38,17 @@ func GetNSMAttesation(logger *zerolog.Logger) (*NSMResponse, error) {
 		logger.Info().Str("rawNsmDocument0", fmt.Sprintf("%v", rawNsmDocument0)).Str("rawNsmDocument0_base64", base64.StdEncoding.EncodeToString(rawNsmDocument0)).Msg("NSM document0")
 	}
 
-	coseSign1, attestDoc, err := getSignatureAndDocument(rawNsmDocument0)
+	res, err := nitrite.Verify(rawNsmDocument0, nitrite.VerifyOptions{CurrentTime: time.Now()})
 	if err != nil {
-		logger.Error().Msgf("failed to get signature and document: %w", err)
-	}
-	cert, err := x509.ParseCertificate(attestDoc.Certificate)
-	if err != nil {
-		logger.Error().Msgf("failed to parse certificate: %w", err)
+		logger.Error().Msgf("failed to verify nsm attestation document: %w", err)
 	}
 
-	err = validateAttestation(coseSign1)
-	if err != nil {
-		logger.Error().Msgf("failed to validate attestation: %w", err)
-	}
 	// return the document
 	return &NSMResponse{
 		RawAttestation: rawNsmDocument0,
-		Attestation:    coseSign1,
-		Document:       attestDoc,
-		Certificate:    cert,
+		COSESign1:      res.COSESign1,
+		Document:       res.Document,
+		Certificate:    res.Certificates[0],
 		IsValid:        err == nil,
 	}, nil
 
