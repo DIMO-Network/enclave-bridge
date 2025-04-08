@@ -75,7 +75,7 @@ spec:
           imagePullPolicy: {{ .Values.app.image.pullPolicy }}
           envFrom:
           - configMapRef:
-              name: {{ include "sample-enclave-api.fullname" . }}-enclave-config
+              name: {{ include "sample-enclave-api.fullname" . }}-app-config
           # - secretRef:
           #     name: {{ include "sample-enclave-api.fullname" . }}-secret
           livenessProbe:
