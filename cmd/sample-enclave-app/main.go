@@ -32,7 +32,7 @@ const (
 
 func main() {
 	logger := server.DefaultLogger(appName)
-
+	logger.Info().Msg("Starting enclave app")
 	cid, err := vsock.ContextID()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get context ID.")
@@ -64,7 +64,7 @@ func main() {
 			},
 		},
 	}
-
+	logger.Info().Msgf("Sending config to bridge")
 	err = enclave.SendConfig(&bridgeSettings)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to setup bridge.")
