@@ -37,6 +37,8 @@ jobs:
   build-enclave:
     name: build-enclave
     runs-on: [self-hosted]
+    container:
+      image: dimozone/nitro-enclave-builder:latest
     needs: build-app
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +54,11 @@ jobs:
         id: slug
         run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
 
+      - name: Create bin directory
+        run: mkdir -p bin
+      - name: Build enclave
+        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{ steps.slug.outputs.sha7 }} --output-file bin/sample-enclave-app.eif
+
       - name: Build and push enclave app
         uses: docker/build-push-action@v3
         with:
@@ -61,8 +68,6 @@ jobs:
           load: false
           build-args: |
             ENCLAVE_NAME=sample-enclave-runtime
-            ENCLAVE_TAG=${{ steps.slug.outputs.sha7 }}
-            ENCLAVE_IMAGE=dimozone/sample-enclave-runtime
           platforms: linux/amd64
           tags: dimozone/sample-enclave-app:${{ steps.slug.outputs.sha7 }}, dimozone/sample-enclave-app:latest
 
@@ -75,7 +80,6 @@ jobs:
           message: "Update Image Version to ${{ steps.slug.outputs.sha7 }}"
           changes: |
             {
-              "charts/sample-enclave-api/values.yaml": {
-                "enclave.image.tag": ${{ steps.slug.outputs.sha7 }},
-                "web.image.tag": ${{ steps.slug.outputs.sha7 }}
+              "enclave.image.tag": ${{ steps.slug.outputs.sha7 }},
+              "web.image.tag": ${{ steps.slug.outputs.sha7 }}
             }
