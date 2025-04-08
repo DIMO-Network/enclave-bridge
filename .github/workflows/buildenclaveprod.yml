@@ -7,7 +7,7 @@ on:
 jobs:
   build-app:
     name: build-runtime
-    runs-on: [self-hosted]
+    runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +76,7 @@ jobs:
   build-final-image:
     # The type of runner that the job will run on
     name: build-final-image
-    runs-on: [self-hosted]
+    runs-on: [ubuntu-latest]
     needs: build-enclave
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it

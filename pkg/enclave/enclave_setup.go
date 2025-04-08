@@ -23,7 +23,7 @@ func SendConfig(config *config.BridgeSettings) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-	_, err = conn.Write(marshaledSettings)
+	_, err = conn.Write(append(marshaledSettings, '\n'))
 	if err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}

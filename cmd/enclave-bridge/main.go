@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -118,8 +118,10 @@ func waitForConfig(ctx context.Context, logger *zerolog.Logger) (*config.BridgeS
 	}
 	defer listener.Close()
 	defer conn.Close()
-
-	configBytes, err := io.ReadAll(conn)
+	logger.Info().Msg("Accepted connection")
+	// read until a new line
+	reader := bufio.NewReader(conn)
+	configBytes, err := reader.ReadBytes('\n')
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
