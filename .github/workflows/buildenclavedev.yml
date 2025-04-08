@@ -11,7 +11,7 @@ env:
 jobs:
   build-app:
     name: build-app
-    runs-on: [self-hosted]
+    runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -24,7 +24,7 @@ jobs:
       
       - name: Get short SHA
         id: slug
-        run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
+        run: echo "sha7=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_OUTPUT
 
       - name: Build and push enclave app
         uses: docker/build-push-action@v3
@@ -40,7 +40,7 @@ jobs:
 
   build-enclave:
     name: build-enclave
-    runs-on: [self-hosted]
+    runs-on: [ubuntu-latest]
     needs: build-app
     outputs:
       measurements: ${{ steps.build_enclave.outputs.measurements }}
@@ -65,7 +65,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Get short SHA
         id: slug
-        run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
+        run: echo "sha7=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_OUTPUT
       - name: Create bin directory
         run: mkdir -p bin
       - name: Build enclave
@@ -85,7 +85,7 @@ jobs:
   build-final-image:
     # The type of runner that the job will run on
     name: build-final-image
-    runs-on: [self-hosted]
+    runs-on: [ubuntu-latest]
     needs: build-enclave
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +98,7 @@ jobs:
         uses: docker/setup-buildx-action@v2
       - name: Get short SHA
         id: slug
-        run: echo "::set-output name=sha7::$(echo ${GITHUB_SHA} | cut -c1-7)"
+        run: echo "sha7=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_OUTPUT
       - uses: actions/download-artifact@v4
         with:
           name: ${{ env.APP_NAME }}
