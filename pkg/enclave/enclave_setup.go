@@ -2,7 +2,9 @@ package enclave
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/DIMO-Network/sample-enclave-api/pkg/config"
 	"github.com/mdlayher/vsock"
@@ -24,6 +26,14 @@ func SendConfig(config *config.BridgeSettings) error {
 	_, err = conn.Write(marshaledSettings)
 	if err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
+	}
+	// wait for other side to close the connection
+	_, err = conn.Read(make([]byte, 1))
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return fmt.Errorf("failed to wait for other side to close connection: %w", err)
 	}
 
 	return nil
