@@ -70,8 +70,10 @@ jobs:
         id: build_enclave
         run: |
           nitro-cli build-enclave --docker-uri dimozone/${{ env.APP_NAME }}-runtime:${{ steps.slug.outputs.sha7 }} --output-file bin/${{ env.APP_NAME }}.eif > enclave_output.txt
-          MEASUREMENTS=$(grep -A 10 '"Measurements"' enclave_output.txt | tr -d '\n' | sed 's/}}.*/}}/')
-          echo "measurements=$MEASUREMENTS" >> $GITHUB_OUTPUT
+          MEASUREMENTS=$(grep -A 10 '"Measurements"' enclave_output.txt | sed -n '/{/,/}}/p')
+          echo "measurements<<EOF" >> $GITHUB_OUTPUT
+          echo "$MEASUREMENTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           cat enclave_output.txt
       - uses: actions/upload-artifact@v4
         with:
