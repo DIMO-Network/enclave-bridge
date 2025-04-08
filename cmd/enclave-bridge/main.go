@@ -38,7 +38,7 @@ func main() {
 	// Wait for enclave to start and send config
 	logger := DefaultLogger("enclave-bridge")
 	logger.Info().Msg("Waiting for config...")
-	bridgeSettings, err := waitForConfig(ctx)
+	bridgeSettings, err := waitForConfig(ctx, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to wait for config.")
 	}
