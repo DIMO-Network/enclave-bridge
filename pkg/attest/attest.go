@@ -22,7 +22,7 @@ type NSMResponse struct {
 }
 
 // GetNSMAttesation gets the NSM attestation.
-func GetNSMAttesation(logger *zerolog.Logger) (*NSMResponse, error) {
+func GetNSMAttestation(logger *zerolog.Logger) (*NSMResponse, error) {
 	// create private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
