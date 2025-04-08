@@ -5,6 +5,8 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  APP_NAME: sample-enclave
 
 jobs:
   build-app:
@@ -32,7 +34,7 @@ jobs:
           push: true
           load: false
           platforms: linux/amd64
-          tags: dimozone/sample-enclave-runtime:${{ steps.slug.outputs.sha7 }}, dimozone/sample-enclave-runtime:latest
+          tags: dimozone/${{ env.APP_NAME }}-runtime:${{ steps.slug.outputs.sha7 }}, dimozone/${{ env.APP_NAME }}-runtime:latest
 
   build-enclave:
     name: build-enclave
@@ -63,11 +65,11 @@ jobs:
       - name: Create bin directory
         run: mkdir -p bin
       - name: Build enclave
-        run: nitro-cli build-enclave --docker-uri dimozone/sample-enclave-runtime:${{ steps.slug.outputs.sha7 }} --output-file bin/sample-enclave-app.eif
+        run: nitro-cli build-enclave --docker-uri dimozone/${{ env.APP_NAME }}-runtime:${{ steps.slug.outputs.sha7 }} --output-file bin/${{ env.APP_NAME }}.eif
       - uses: actions/upload-artifact@v4
         with:
-          name: sample-enclave-app
-          path: bin/sample-enclave-app.eif
+          name: ${{ env.APP_NAME }}
+          path: bin/${{ env.APP_NAME }}.eif
 
   build-final-image:
     # The type of runner that the job will run on
@@ -92,23 +94,25 @@ jobs:
       
       - uses: actions/download-artifact@v4
         with:
-          name: sample-enclave-app
-          path: bin/sample-enclave-app.eif
+          name: ${{ env.APP_NAME }}
+          path: bin/${{ env.APP_NAME }}.eif
 
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/enclave-dockerfile
+          file: ./docker/enclave/Dockerfile
+          build-args: |
+            APP_NAME=${{ env.APP_NAME }}
           push: true
           platforms: linux/amd64
-          tags: dimozone/sample-enclave-app:${{ steps.slug.outputs.sha7 }}, dimozone/sample-enclave-app:latest
+          tags: dimozone/${{ env.APP_NAME }}-enclave:${{ steps.slug.outputs.sha7 }}, dimozone/${{ env.APP_NAME }}-enclave:latest
 
 
       - name: Update image version
         uses: fjogeleit/yaml-update-action@v0.16.0
         with:
-          valueFile: "charts/sample-enclave-api/values.yaml"
+          valueFile: "charts/${{ env.APP_NAME }}-api/values.yaml"
           value: ${{ steps.slug.outputs.sha7 }}
           branch: main
           message: "Update Image Version to ${{ steps.slug.outputs.sha7 }}"

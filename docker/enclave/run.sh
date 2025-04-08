@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
 set -xe
-readonly ENCLAVE_NAME=${ENCLAVE_NAME:-"enclave-app"}
-readonly EIF_PATH="/eif/$ENCLAVE_NAME.eif"
+readonly APP_NAME=${APP_NAME:-"enclave-app"}
+readonly EIF_PATH="/eif/$APP_NAME.eif"
 
 ENCLAVE_CPU_COUNT=${ENCLAVE_CPU_COUNT:-1}
 ENCLAVE_MEMORY_SIZE=${ENCLAVE_MEMORY_SIZE:-1000}
@@ -10,7 +10,7 @@ ENCLAVE_CID=${ENCLAVE_CID:-16}
 
 term_handler() {
   echo 'Shutting down enclave'
-  nitro-cli terminate-enclave --enclave-name $ENCLAVE_NAME
+  nitro-cli terminate-enclave --enclave-name $APP_NAME
   kill -0 $(pgrep nitro-cli)
   echo 'Shutdown complete'
   exit 0;
@@ -40,7 +40,7 @@ start() {
 }
 
 healthcheck() {
-  cmd="nitro-cli describe-enclaves | jq -e '"'[ .[] | select( .EnclaveName == "'$ENCLAVE_NAME'" and .State == "RUNNING") ] | length == 1 '"'"
+  cmd="nitro-cli describe-enclaves | jq -e '"'[ .[] | select( .EnclaveName == "'$APP_NAME'" and .State == "RUNNING") ] | length == 1 '"'"
   bash -c "$cmd"
 }
 
