@@ -40,7 +40,7 @@ jobs:
 
   build-enclave:
     name: build-enclave
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted]
     needs: build-app
     outputs:
       measurements: ${{ steps.build_enclave.outputs.measurements }}
