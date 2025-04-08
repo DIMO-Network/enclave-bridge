@@ -27,7 +27,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./docker/dockerfile
+          file: ./docker/enclave-api/Dockerfile
           push: true
           platforms: linux/amd64
           tags: dimozone/sample-enclave-api:${{ steps.slug.outputs.sha7 }}, dimozone/sample-enclave-api:latest

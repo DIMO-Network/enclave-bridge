@@ -9,7 +9,7 @@ ARG ENCLAVE_IMAGE
 RUN echo "ENCLAVE_NAME: ${ENCLAVE_NAME}"
 RUN echo "ENCLAVE_TAG: ${ENCLAVE_TAG}"
 RUN echo "ENCLAVE_IMAGE: ${ENCLAVE_IMAGE}"
-RUN nitro-cli build-enclave --docker-uri ${ENCLAVE_IMAGE}:${ENCLAVE_TAG} --output-file app.eif
+RUN nitro-cli build-enclave --docker-uri ${ENCLAVE_IMAGE}:${ENCLAVE_TAG} --output-file app.eif || cat /var/log/nitro_enclaves/err*
 
 
 

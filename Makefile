@@ -61,6 +61,12 @@ docker: dep ## build docker image
 	@docker build -f ./docker/dockerfile . -t dimozone/$(BIN_NAME):$(VER_CUT)
 	@docker tag dimozone/$(BIN_NAME):$(VER_CUT) dimozone/$(BIN_NAME):latest
 
+docker-enclave: dep ## build docker image
+	@docker build -f ./docker/enclave-runner/Dockerfile . --no-cache --progress=plain --build-arg ENCLAVE_NAME=sample-enclave-app --build-arg ENCLAVE_TAG=latest --build-arg ENCLAVE_IMAGE=dimozone/sample-enclave-runtime --platform linux/amd64 -t dimozone/sample-enclave-app:$(VER_CUT)
+	# @docker tag dimozone/sample-enclave-app:$(VER_CUT) dimozone/sample-enclave-app:latest
+
+docker-runtime-amd64: dep ## build docker image for amd64 platform
+	@docker build --platform linux/amd64 --no-cache --progress plain -f ./docker/runtime-dockerfile . -t dimozone/sample-enclave-app:latest
 
 tools-golangci-lint: ## install golangci-lint
 	@mkdir -p $(PATHINSTBIN)
