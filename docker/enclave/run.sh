@@ -2,7 +2,7 @@
 
 set -xe
 readonly APP_NAME=${APP_NAME:-"enclave-app"}
-readonly EIF_PATH="/eif/$APP_NAME.eif"
+readonly EIF_PATH="/$APP_NAME.eif"
 
 ENCLAVE_CPU_COUNT=${ENCLAVE_CPU_COUNT:-1}
 ENCLAVE_MEMORY_SIZE=${ENCLAVE_MEMORY_SIZE:-1000}

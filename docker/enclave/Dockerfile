@@ -1,7 +1,7 @@
 FROM dimozone/nitro-enclave-builder:latest
 
 ARG APP_NAME
-COPY ./build/${APP_NAME}.eif /${APP_NAME}.eif
+COPY ./bin/${APP_NAME}.eif /${APP_NAME}.eif
 COPY ./docker/enclave/run.sh /run.sh
 RUN chmod +x /run.sh
 
