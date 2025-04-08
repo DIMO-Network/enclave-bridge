@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/DIMO-Network/sample-enclave-api/pkg/config"
 	"github.com/DIMO-Network/sample-enclave-api/pkg/enclave"
@@ -16,6 +18,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/mdlayher/vsock"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"inet.af/tcpproxy"
 )
@@ -34,6 +37,7 @@ func main() {
 
 	// Wait for enclave to start and send config
 	logger := DefaultLogger("enclave-bridge")
+	logger.Info().Msg("Waiting for config...")
 	bridgeSettings, err := waitForConfig(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to wait for config.")
@@ -96,20 +100,25 @@ func CreateMonitoringServer(port string) *fiber.App {
 }
 
 // waitForConfig starts listening on the default vsock port for a config file and returns the config.
-func waitForConfig(ctx context.Context) (*config.BridgeSettings, error) {
-	listener, err := vsock.ListenContextID(enclave.DefaultHostCID, enclave.InitPort, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to listen for target requests: %w", err)
+func waitForConfig(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSettings, error) {
+	var conn net.Conn
+	var listener *vsock.Listener
+	var err error
+	for {
+		listener, err = vsock.ListenContextID(enclave.DefaultHostCID, enclave.InitPort, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to listen for target requests: %w", err)
+		}
+		conn, err = listen(ctx, listener)
+		if err == nil {
+			break
+		}
+		logger.Error().Err(err).Msg("Failed to listen for target requests")
+		time.Sleep(1 * time.Second)
 	}
-	go func() {
-		<-ctx.Done()
-		listener.Close()
-	}()
+	defer listener.Close()
+	defer conn.Close()
 
-	conn, err := listener.Accept()
-	if err != nil {
-		return nil, fmt.Errorf("failed to accept target request: %w", err)
-	}
 	configBytes, err := io.ReadAll(conn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
@@ -120,8 +129,19 @@ func waitForConfig(ctx context.Context) (*config.BridgeSettings, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	logger.Debug().Interface("config", config).Msg("Received config")
 
 	return &config, nil
+}
+
+func listen(ctx context.Context, listener *vsock.Listener) (net.Conn, error) {
+	defer listener.Close()
+	conn, err := listener.Accept()
+	if err != nil {
+		return nil, fmt.Errorf("failed to accept target request: %w", err)
+	}
+	return conn, nil
+
 }
 
 // RunFiber runs a fiber server and returns a context that can be used to stop the server.
