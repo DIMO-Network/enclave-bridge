@@ -35,11 +35,11 @@ func (c *Controller) GetVehicleInfo(ctx *fiber.Ctx) error {
 }
 
 func (c *Controller) GetNSMAttestations(ctx *fiber.Ctx) error {
-	attestations, err := attest.GetNSMAttesation(c.logger)
+	attestation, err := attest.GetNSMAttestation(c.logger)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to get NSM attestations")
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to get NSM attestations")
 	}
 
-	return ctx.JSON(attestations)
+	return ctx.JSON(attestation)
 }

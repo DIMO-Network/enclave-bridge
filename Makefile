@@ -4,7 +4,7 @@ SHELL := /bin/bash
 PATHINSTBIN = $(abspath ./bin)
 export PATH := $(PATHINSTBIN):$(PATH)
 
-BIN_NAME					?= sample-enclave-api
+BIN_NAME					?= sample-enclave-app
 DEFAULT_INSTALL_DIR			:= $(go env GOPATH)/$(PATHINSTBIN)
 DEFAULT_ARCH				:= $(shell go env GOARCH)
 DEFAULT_GOOS				:= $(shell go env GOOS)
@@ -32,9 +32,9 @@ build:
 	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) \
 		go build -o $(PATHINSTBIN)/$(BIN_NAME) ./cmd/$(BIN_NAME)
 
-build-enclave:
+build-enclave-bridge:
 	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) \
-		go build -o $(PATHINSTBIN)/sample-enclave-app ./cmd/sample-enclave-app
+		go build -o $(PATHINSTBIN)/enclave-bridge ./cmd/enclave-bridge
 
 run: build
 	@./$(PATHINSTBIN)/$(BIN_NAME)

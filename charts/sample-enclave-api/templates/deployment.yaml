@@ -21,8 +21,8 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/webconfig: {{ include (print $.Template.BasePath "/webenvconfigmap.yaml") . | sha256sum }}
-        checksum/enclaveconfig: {{ include (print $.Template.BasePath "/enclaveenvconfigmap.yaml") . | sha256sum }}
+        checksum/bridgeconfig: {{ include (print $.Template.BasePath "/bridge-envconfigmap.yaml") . | sha256sum }}
+        checksum/appconfig: {{ include (print $.Template.BasePath "/envconfigmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -46,18 +46,18 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers: []
       containers:
-        - name: sample-enclave-api
+        - name: enclave-bridge
           securityContext:
-            {{- toYaml .Values.web.securityContext | nindent 12 }}
-          image: "{{ .Values.web.image.repository }}:{{ .Values.web.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+            {{- toYaml .Values.bridge.securityContext | nindent 12 }}
+          image: "{{ .Values.bridge.image.repository }}:{{ .Values.bridge.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.bridge.image.pullPolicy }}
           envFrom:
           - configMapRef:
-              name: {{ include "sample-enclave-api.fullname" . }}-web-config
+              name: {{ include "sample-enclave-api.fullname" . }}-bridge-config
           # - secretRef:
           #     name: {{ include "sample-enclave-api.fullname" . }}-secret
           ports:
-{{ toYaml .Values.web.ports | indent 12 }}
+{{ toYaml .Values.bridge.ports | indent 12 }}
           livenessProbe:
             httpGet:
               path: /
@@ -67,12 +67,12 @@ spec:
               path: /
               port: mon-http
           resources:
-            {{- toYaml .Values.web.resources | nindent 12 }}
+            {{- toYaml .Values.bridge.resources | nindent 12 }}
         - name: sample-enclave-app
           securityContext:
-            {{- toYaml .Values.enclave.securityContext | nindent 12 }}
-          image: "{{ .Values.enclave.image.repository }}:{{ .Values.enclave.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.enclave.image.pullPolicy }}
+            {{- toYaml .Values.app.securityContext | nindent 12 }}
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
           envFrom:
           - configMapRef:
               name: {{ include "sample-enclave-api.fullname" . }}-enclave-config
@@ -86,7 +86,7 @@ spec:
             failureThreshold: 2
             initialDelaySeconds: 10
           resources:
-            {{- toYaml .Values.enclave.resources | nindent 12 }}
+            {{- toYaml .Values.app.resources | nindent 12 }}
           volumeMounts:
             - name: nitro-enclaves
               mountPath: /dev/nitro_enclaves

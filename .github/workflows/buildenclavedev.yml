@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  APP_NAME: sample-enclave
+  APP_NAME: sample-enclave-app
 
 jobs:
   build-app:
@@ -34,7 +34,9 @@ jobs:
           push: true
           load: false
           platforms: linux/amd64
-          tags: dimozone/${{ env.APP_NAME }}-runtime:${{ steps.slug.outputs.sha7 }}, dimozone/${{ env.APP_NAME }}-runtime:latest
+          build-args: |
+            APP_NAME=${{ env.APP_NAME }}
+          tags: dimozone/${{ env.APP_NAME }}:${{ steps.slug.outputs.sha7 }}, dimozone/${{ env.APP_NAME }}:latest
 
   build-enclave:
     name: build-enclave
@@ -69,7 +71,7 @@ jobs:
       - name: Build enclave
         id: build_enclave
         run: |
-          nitro-cli build-enclave --docker-uri dimozone/${{ env.APP_NAME }}-runtime:${{ steps.slug.outputs.sha7 }} --output-file bin/${{ env.APP_NAME }}.eif > enclave_output.txt
+          nitro-cli build-enclave --docker-uri dimozone/${{ env.APP_NAME }}:${{ steps.slug.outputs.sha7 }} --output-file bin/${{ env.APP_NAME }}.eif > enclave_output.txt
           MEASUREMENTS=$(grep -A 10 '"Measurements"' enclave_output.txt | sed -n '/"Measurements"/,/  }/p')
           echo "measurements<<EOF" >> $GITHUB_OUTPUT
           echo "$MEASUREMENTS" >> $GITHUB_OUTPUT
@@ -120,6 +122,6 @@ jobs:
           message: "Update Image Version to ${{ steps.slug.outputs.sha7 }}\n\n${{ needs.build-enclave.outputs.measurements }}"
           changes: |
             {
-              "enclave.image.tag": "${{ steps.slug.outputs.sha7 }}",
-              "web.image.tag": "${{ steps.slug.outputs.sha7 }}"
+              "app.image.tag": "${{ steps.slug.outputs.sha7 }}",
+              "bridge.image.tag": "${{ steps.slug.outputs.sha7 }}"
             }

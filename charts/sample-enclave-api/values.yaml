@@ -4,9 +4,9 @@ nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 podSecurityContext: {}
-web:
+bridge:
   image:
-    repository: dimozone/sample-enclave-api
+    repository: dimozone/enclave-bridge
     pullPolicy: IfNotPresent
     tag: 85755c0
   securityContext:
@@ -34,9 +34,9 @@ web:
     requests:
       cpu: 100m
       memory: 256Mi
-enclave:
+app:
   image:
-    repository: dimozone/sample-enclave-app
+    repository: dimozone/sample-enclave-app-enclave
     pullPolicy: IfNotPresent
     tag: 85755c0
   securityContext:
@@ -50,6 +50,8 @@ enclave:
     ENCLAVE_CID: '16'
     AWS_REGION: us-east-2
     ENCLAVE_DEBUG_MODE: null
+    LOG_LEVEL: DEBUG
+    PORT: '8080'
   ports: null
   resources:
     limits:

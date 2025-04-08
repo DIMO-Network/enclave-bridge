@@ -12,13 +12,14 @@ COPY --from=musl . /
 COPY --from=zlib . /
 COPY --from=git . /
 
+ARG APP_NAME
 ENV CGO_ENABLED=0
 
 WORKDIR /build
 COPY . ./
 
 RUN go mod tidy
-RUN make build-enclave
+RUN make build
 
 FROM gcr.io/distroless/base AS final
 
@@ -26,6 +27,6 @@ LABEL maintainer="DIMO <hello@dimo.zone>"
 
 USER nonroot:nonroot
 
-COPY --from=build --chown=nonroot:nonroot /build/bin/sample-enclave-app /
+COPY --from=build --chown=nonroot:nonroot /build/bin/${APP_NAME} /
 
-ENTRYPOINT ["./sample-enclave-app", "5000"]
+ENTRYPOINT ["./${APP_NAME}"]

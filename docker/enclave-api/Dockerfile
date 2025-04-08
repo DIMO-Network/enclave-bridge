@@ -6,15 +6,15 @@ WORKDIR /build
 COPY . ./
 
 RUN go mod tidy
-RUN make build
+RUN make build-enclave-bridge
 
 FROM gcr.io/distroless/base AS final
 
 LABEL maintainer="DIMO <hello@dimo.zone>"
 
-COPY --from=build --chown=nonroot:nonroot /build/bin/sample-enclave-api /
+COPY --from=build --chown=nonroot:nonroot /build/bin/enclave-bridge /
 
 EXPOSE 8080
 EXPOSE 8888
 
-ENTRYPOINT ["/sample-enclave-api"]
+ENTRYPOINT ["/enclave-bridge"]
