@@ -1,4 +1,4 @@
-name: buildpushdev
+name: buildpushdev-bridge
 on:
   push:
     branches:
