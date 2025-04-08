@@ -107,7 +107,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/enclave/Dockerfile
+          file: ./docker/enclave-bridge/Dockerfile
           build-args: |
             APP_NAME=${{ env.APP_NAME }}
           push: true
