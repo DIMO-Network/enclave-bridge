@@ -12,7 +12,6 @@ COPY --from=musl . /
 COPY --from=zlib . /
 COPY --from=git . /
 
-ARG APP_NAME
 ENV CGO_ENABLED=0
 
 WORKDIR /build
@@ -27,6 +26,7 @@ LABEL maintainer="DIMO <hello@dimo.zone>"
 
 USER nonroot:nonroot
 
-COPY --from=build --chown=nonroot:nonroot /build/bin/${APP_NAME} /
+ARG APP_NAME
+COPY --from=build --chown=nonroot:nonroot /build/bin/${APP_NAME} /app
 
-ENTRYPOINT ["./${APP_NAME}"]
+ENTRYPOINT ["/app"]
