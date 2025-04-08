@@ -15,10 +15,7 @@ bridge:
       drop:
         - all
   env:
-    LOG_LEVEL: DEBUG
-    PORT: '8080'
     MON_PORT: '8888'
-    ENCLAVE_CID: '16'
     ENCLAVE_PORT: '5000'
   ports:
     - name: mon-http

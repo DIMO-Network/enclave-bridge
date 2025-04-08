@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultMonPort = 8080
+	defaultMonPort = 8888
 )
 
 func main() {
