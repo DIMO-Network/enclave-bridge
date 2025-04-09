@@ -32,7 +32,6 @@ start() {
     echo 'Enclave started in debug mode.'
   fi
 
-  nitro-cli describe-enclaves
   # wait forever
   while true
   do
@@ -41,7 +40,6 @@ start() {
 }
 
 healthcheck() {
-  return 0
   cmd="nitro-cli describe-enclaves | jq -e '"'[ .[] | select( .EnclaveName == "'$APP_NAME'" and .State == "RUNNING") ] | length == 1 '"'"
   bash -c "$cmd"
 }

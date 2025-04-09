@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DIMO-Network/sample-enclave-api/pkg/config"
-	"github.com/DIMO-Network/sample-enclave-api/pkg/enclave"
+	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/config"
+	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/enclave"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/mdlayher/vsock"
@@ -34,7 +34,6 @@ func main() {
 
 	monApp := CreateMonitoringServer(strconv.Itoa(defaultMonPort))
 	RunFiber(ctx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
-
 	// Wait for enclave to start and send config
 	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
 	logger.Info().Msg("Waiting for config...")

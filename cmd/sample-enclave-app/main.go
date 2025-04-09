@@ -10,13 +10,14 @@ import (
 	"syscall"
 	"time"
 
+	bridgecfg "github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/config"
+	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/enclave"
 	"github.com/DIMO-Network/sample-enclave-api/internal/app"
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
-	bridgecfg "github.com/DIMO-Network/sample-enclave-api/pkg/config"
-	"github.com/DIMO-Network/sample-enclave-api/pkg/enclave"
 	"github.com/DIMO-Network/shared"
 	"github.com/gofiber/fiber/v2"
 	"github.com/mdlayher/vsock"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -75,7 +76,7 @@ func main() {
 		tmpLogger.Fatal().Err(err).Msg("Failed to create logger socket.")
 	}
 	defer cleanup()
-
+	go heartbeatLog(ctx, &logger)
 	listener, err := vsock.Listen(serverTunnelPort, nil)
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("Couldn't listen on port %d.", serverTunnelPort)
@@ -111,4 +112,17 @@ func RunFiberWithListener(ctx context.Context, fiberApp *fiber.App, listener net
 		}
 		return nil
 	})
+}
+
+func heartbeatLog(ctx context.Context, logger *zerolog.Logger) {
+	t := time.NewTicker(heartInterval)
+	for {
+		select {
+		case <-t.C:
+			logger.Warn().Msg("Enclave still alive.")
+		case <-ctx.Done():
+			t.Stop()
+			return
+		}
+	}
 }

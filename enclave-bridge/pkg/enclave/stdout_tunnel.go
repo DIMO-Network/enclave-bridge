@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/mdlayher/vsock"
+	"github.com/rs/zerolog/log"
 )
 
 // StdoutTunnel is a tunnel that copies data from the vsock connection to stdout.
@@ -57,6 +58,7 @@ func (c *StdoutTunnel) ListenForTargetRequests(ctx context.Context) error {
 			}
 			return fmt.Errorf("failed to accept target request: %w", err)
 		}
+		log.Debug().Msgf("Accepted target request from %s", conn.RemoteAddr())
 
 		go c.HandleConn(conn)
 	}

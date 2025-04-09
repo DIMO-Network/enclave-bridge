@@ -3,8 +3,8 @@ package app
 import (
 	"strconv"
 
+	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/attest"
 	"github.com/DIMO-Network/sample-enclave-api/internal/client/identity"
-	"github.com/DIMO-Network/sample-enclave-api/pkg/attest"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )

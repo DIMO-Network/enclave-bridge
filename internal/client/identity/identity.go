@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/DIMO-Network/sample-enclave-api/pkg/client"
+	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/client"
 )
 
 // Service interacts with the identity GraphQL API.

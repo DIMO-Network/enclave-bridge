@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DIMO-Network/sample-enclave-api/pkg/config"
+	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/config"
 	"github.com/mdlayher/vsock"
 )
 
