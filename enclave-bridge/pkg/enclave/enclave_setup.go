@@ -13,8 +13,12 @@ import (
 	"github.com/mdlayher/vsock"
 )
 
-const ACK = 1
-const InitPort = 5000
+const (
+	// ACK is the ACK message sent by the enclave-bridge.
+	ACK = 1
+	// InitPort is the port used to initialize the enclave-bridge.
+	InitPort = uint32(5000)
+)
 
 // EnclaveSetup is a struct that contains the enclave-bridge setup process.
 type EnclaveSetup[T any] struct {
@@ -25,10 +29,10 @@ type EnclaveSetup[T any] struct {
 }
 
 // Start starts the enclave-bridge setup process.
-func (e *EnclaveSetup[T]) Start() error {
+func (e *EnclaveSetup[T]) Start(initPort uint32) error {
 	e.ready = make(chan struct{})
 	var err error
-	e.conn, err = vsock.Dial(DefaultHostCID, InitPort, nil)
+	e.conn, err = vsock.Dial(DefaultHostCID, initPort, nil)
 	if err != nil {
 		return fmt.Errorf("failed to dial vsock: %w", err)
 	}
@@ -43,7 +47,7 @@ func (e *EnclaveSetup[T]) Start() error {
 	environment := map[string]string{}
 	err = json.Unmarshal([]byte(envSettings), &environment)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal enviorment: %w", err)
+		return fmt.Errorf("failed to unmarshal environment variables: %w", err)
 	}
 
 	envOpts := env.Options{
@@ -51,7 +55,7 @@ func (e *EnclaveSetup[T]) Start() error {
 	}
 	e.enclaveConfig, err = env.ParseAsWithOptions[T](envOpts)
 	if err != nil {
-		return fmt.Errorf("failed to parse enviorment: %w", err)
+		return fmt.Errorf("failed to parse environment variables: %w", err)
 	}
 	return nil
 }

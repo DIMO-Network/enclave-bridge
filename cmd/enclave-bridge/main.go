@@ -40,6 +40,7 @@ func main() {
 	// Wait for enclave to start and send config
 	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
 	logger.Info().Msg("Waiting for config...")
+
 	bridgeSettings, readyFunc, err := SetupEnclave(ctx, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to wait for config.")
@@ -117,13 +118,22 @@ func CreateMonitoringServer(port string) *fiber.App {
 	return monApp
 }
 
-// waitForConfig starts listening on the default vsock port for a config file and returns the config.
+// SetupEnclave starts listening on the init port and begins the configuration exchange process.
 func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSettings, func() error, error) {
 	var conn net.Conn
 	var listener *vsock.Listener
 	var err error
+	initPort := os.Getenv("VSOCK_INIT_PORT")
+	initPortInt := enclave.InitPort
+	if initPort != "" {
+		initPortInt64, err := strconv.ParseUint(initPort, 10, 32)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to convert VSOCK_INIT_PORT to int")
+		}
+		initPortInt = uint32(initPortInt64)
+	}
 	for {
-		listener, err = vsock.ListenContextID(enclave.DefaultHostCID, enclave.InitPort, nil)
+		listener, err = vsock.ListenContextID(enclave.DefaultHostCID, initPortInt, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to listen for target requests: %w", err)
 		}

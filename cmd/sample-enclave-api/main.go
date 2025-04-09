@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -35,8 +36,17 @@ func main() {
 	if err != nil {
 		tmpLogger.Fatal().Err(err).Msg("Failed to get context ID.")
 	}
+	initPort := enclave.InitPort
+	if len(os.Args) > 1 {
+		initPort64, err := strconv.ParseUint(os.Args[1], 10, 32)
+		if err != nil {
+			tmpLogger.Fatal().Err(err).Msg("Failed to convert VSOCK_INIT_PORT to int")
+		}
+		initPort = uint32(initPort64)
+	}
+
 	enclaveSetup := enclave.EnclaveSetup[config.Settings]{}
-	err = enclaveSetup.Start()
+	err = enclaveSetup.Start(initPort)
 	if err != nil {
 		tmpLogger.Fatal().Err(err).Msg("Failed to setup bridge.")
 	}
