@@ -45,7 +45,7 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to wait for config.")
 	}
-	logger = enclave.DefaultLogger(bridgeSettings.AppName, os.Stdout).With().Str("app", bridgeSettings.AppName).Str("component", "enclave-bridge").Logger()
+	logger = enclave.DefaultLogger(bridgeSettings.AppName, os.Stdout).With().Str("component", "enclave-bridge").Logger()
 
 	// Set up logger.
 	enclave.SetLevel(&logger, bridgeSettings.Logger.Level)
@@ -161,12 +161,11 @@ func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSe
 		return nil, nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	var config config.BridgeSettings
-	err = json.Unmarshal(configBytes, &config)
+	var settings config.BridgeSettings
+	err = json.Unmarshal(configBytes, &settings)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	logger.Debug().Interface("config", config).Msg("Received config")
 	readyFunc := func() error {
 		logger.Debug().Msg("Sending start ACK to enclave")
 		defer listener.Close()
@@ -178,7 +177,7 @@ func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSe
 		}
 		return nil
 	}
-	return &config, readyFunc, nil
+	return &settings, readyFunc, nil
 }
 
 func listen(ctx context.Context, listener *vsock.Listener) (net.Conn, error) {
