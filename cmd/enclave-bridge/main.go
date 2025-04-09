@@ -102,7 +102,7 @@ func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, g
 		return proxy.Run()
 	})
 	group.Go(func() error {
-		waitGroup.Wait()
+		waitGroup.Done()
 		<-ctx.Done()
 		proxy.Close()
 		return nil
@@ -143,7 +143,7 @@ func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSe
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to write environment: %w", err)
 	}
-	logger.Info().Msg("Waiting for enclave to send config")
+	logger.Info().Msg("Waiting for enclave to send bridge configuration")
 	// read until a new line
 	reader := bufio.NewReader(conn)
 	configBytes, err := reader.ReadBytes('\n')
@@ -158,6 +158,7 @@ func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSe
 	}
 	logger.Debug().Interface("config", config).Msg("Received config")
 	readyFunc := func() error {
+		logger.Debug().Msg("Sending start ACK to enclave")
 		defer listener.Close()
 		defer conn.Close()
 		// Send ACK to enclave

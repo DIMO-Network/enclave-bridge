@@ -66,14 +66,17 @@ func main() {
 		},
 	}
 
+	tmpLogger.Debug().Msg("Sending bridge configuration to enclave")
 	err = enclaveSetup.SendBridgeConfig(&bridgeSettings)
 	if err != nil {
 		tmpLogger.Fatal().Err(err).Msg("Failed to setup bridge.")
 	}
+	tmpLogger.Debug().Msg("Waiting for bridge setup")
 	err = enclaveSetup.WaitForBridgeSetup()
 	if err != nil {
 		tmpLogger.Fatal().Err(err).Msg("Failed to setup bridge.")
 	}
+	tmpLogger.Debug().Msg("Continuing with enclave setup")
 	logger, cleanup, err := enclave.DefaultWithSocket(appName, loggerPort)
 	if err != nil {
 		tmpLogger.Fatal().Err(err).Msg("Failed to create logger socket.")
