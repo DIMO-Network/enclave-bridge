@@ -19,7 +19,10 @@ func NewHTTPClient(port uint32) *http.Client {
 				if err != nil {
 					return nil, fmt.Errorf("failed to dial vsock: %w", err)
 				}
-				vsockConn.Write([]byte(addr + "\n"))
+				_, err = vsockConn.Write([]byte(addr + "\n"))
+				if err != nil {
+					return nil, fmt.Errorf("failed to write to vsock: %w", err)
+				}
 				return vsockConn, nil
 			},
 		},

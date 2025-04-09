@@ -41,7 +41,7 @@ func DefaultWithSocket(appName string, port uint32) (zerolog.Logger, func(), err
 		return zerolog.Logger{}, nil, fmt.Errorf("failed to dial socket: %w", err)
 	}
 	close := func() {
-		conn.Close()
+		_ = conn.Close() //nolint:errcheck
 	}
 	logger := DefaultLogger(appName, conn)
 	return logger, close, nil

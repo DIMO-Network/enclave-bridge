@@ -17,9 +17,10 @@ ENV CGO_ENABLED=0
 WORKDIR /build
 COPY . ./
 
-RUN go mod tidy
 RUN make build
 
+ARG APP_NAME
+RUN echo "APP_NAME: ${APP_NAME}"
 FROM gcr.io/distroless/base AS final
 
 LABEL maintainer="DIMO <hello@dimo.zone>"

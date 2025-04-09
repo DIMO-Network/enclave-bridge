@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - v*
+env:
+  APP_NAME: enclave-bridge
 
 jobs:
   build_test:
@@ -34,5 +36,7 @@ jobs:
           context: .
           file: ./docker/dockerfile
           push: true
+          build-args: |
+            APP_NAME=${{ env.APP_NAME }}
           platforms: linux/amd64
-          tags: dimozone/sample-enclave-api:${{steps.tag.outputs.tag}}
+          tags: dimozone/${{ env.APP_NAME }}:${{steps.tag.outputs.tag}}

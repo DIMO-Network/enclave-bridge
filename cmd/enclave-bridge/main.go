@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/config"
-	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/enclave"
+	"github.com/DIMO-Network/enclave-bridge/pkg/config"
+	"github.com/DIMO-Network/enclave-bridge/pkg/enclave"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/mdlayher/vsock"
@@ -49,12 +49,12 @@ func main() {
 
 	// Set up logger.
 	enclave.SetLevel(&logger, bridgeSettings.Logger.Level)
-	stdoutTunnel := enclave.NewStdoutTunnel(bridgeSettings.Logger.EnclaveDialPort)
+	stdoutTunnel := enclave.NewStdoutTunnel(bridgeSettings.Logger.EnclaveDialPort, logger.With().Str("component", "stdout-tunnel").Logger())
 	runClientTunnel(groupCtx, stdoutTunnel, group)
 
 	// Set up server tunnels.
 	for _, serversSettings := range bridgeSettings.Servers {
-		serverTunnel := enclave.NewServerTunnel(serversSettings.EnclaveCID, serversSettings.EnclaveListenPort, &logger)
+		serverTunnel := enclave.NewServerTunnel(serversSettings.EnclaveCID, serversSettings.EnclaveListenPort, logger.With().Str("component", "server-tunnel").Logger())
 		portStr := strconv.FormatUint(uint64(serversSettings.BridgeTCPPort), 10)
 		logger.Info().Str("port", portStr).Msgf("Starting Bridge server")
 		runServerTunnel(groupCtx, serverTunnel, ":"+portStr, group)
@@ -62,7 +62,7 @@ func main() {
 
 	// Set up client tunnels.
 	for _, clientSettings := range bridgeSettings.Clients {
-		clientTunnel := enclave.NewClientTunnel(clientSettings.EnclaveDialPort, clientSettings.RequestTimeout, &logger)
+		clientTunnel := enclave.NewClientTunnel(clientSettings.EnclaveDialPort, clientSettings.RequestTimeout, logger.With().Str("component", "client-tunnel").Logger())
 		portStr := strconv.FormatUint(uint64(clientSettings.EnclaveDialPort), 10)
 		logger.Info().Str("port", portStr).Msgf("Starting Bridge client")
 		runClientTunnel(groupCtx, clientTunnel, group)
@@ -105,7 +105,7 @@ func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, g
 	group.Go(func() error {
 		waitGroup.Done()
 		<-ctx.Done()
-		proxy.Close()
+		_ = proxy.Close()
 		return nil
 	})
 	waitGroup.Wait()
@@ -168,8 +168,8 @@ func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSe
 	}
 	readyFunc := func() error {
 		logger.Debug().Msg("Sending start ACK to enclave")
-		defer listener.Close()
-		defer conn.Close()
+		defer listener.Close() //nolint:errcheck
+		defer conn.Close()     //nolint:errcheck
 		// Send ACK to enclave
 		_, err = conn.Write([]byte{enclave.ACK})
 		if err != nil {
@@ -181,7 +181,7 @@ func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSe
 }
 
 func listen(ctx context.Context, listener *vsock.Listener) (net.Conn, error) {
-	defer listener.Close()
+	defer listener.Close() //nolint:errcheck
 	conn, err := listener.Accept()
 	if err != nil {
 		return nil, fmt.Errorf("failed to accept target request: %w", err)

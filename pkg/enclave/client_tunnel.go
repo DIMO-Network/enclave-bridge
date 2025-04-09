@@ -28,20 +28,20 @@ func (c *ClientTunnel) Port() uint32 {
 	return c.port
 }
 
-func NewClientTunnel(port uint32, requestTimeout time.Duration, logger *zerolog.Logger) *ClientTunnel {
+func NewClientTunnel(port uint32, requestTimeout time.Duration, logger zerolog.Logger) *ClientTunnel {
 	if requestTimeout == 0 {
 		requestTimeout = 5 * time.Minute
 	}
 	return &ClientTunnel{
 		port:           port,
 		requestTimeout: requestTimeout,
-		logger:         logger,
+		logger:         &logger,
 	}
 }
 
 // HandleConn dial a vsock connection and copy data in both directions.
 func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
-	defer vsockConn.Close()
+	defer vsockConn.Close() //nolint:errcheck
 	// Create a context with timeout for the entire operation
 	requestCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
@@ -69,7 +69,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 		c.logger.Error().Err(err).Msg("Failed to dial target service")
 		return
 	}
-	defer targetConn.Close()
+	defer targetConn.Close() //nolint:errcheck
 
 	// Create error group for goroutine coordination
 	group, _ := errgroup.WithContext(requestCtx)
@@ -108,7 +108,7 @@ func (c *ClientTunnel) ListenForTargetRequests(ctx context.Context) error {
 	c.logger.Info().Msgf("Listening for target requests on port %d", c.port)
 	go func() {
 		<-ctx.Done()
-		listener.Close()
+		_ = listener.Close() //nolint:errcheck
 	}()
 
 	for {

@@ -56,7 +56,7 @@ func getNSMDocument(privateKey *rsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open NSM session: %w", err)
 	}
-	defer session.Close()
+	defer session.Close() //nolint:errcheck
 
 	// create a new attestation request
 	req := &request.Attestation{

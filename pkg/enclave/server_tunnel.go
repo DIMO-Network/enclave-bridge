@@ -31,12 +31,12 @@ func (v *ServerTunnel) CID() uint32 {
 }
 
 // NewServerTunnel creates a new ServerTunnel.
-func NewServerTunnel(cid uint32, port uint32, logger *zerolog.Logger) *ServerTunnel {
+func NewServerTunnel(cid uint32, port uint32, logger zerolog.Logger) *ServerTunnel {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ServerTunnel{
 		cid:       cid,
 		port:      port,
-		logger:    logger,
+		logger:    &logger,
 		parentCtx: ctx,
 		cancel:    cancel,
 	}
@@ -49,12 +49,11 @@ func (v *ServerTunnel) Stop() {
 
 // HandleConn dial a vsock connection and copy data in both directions.
 func (v *ServerTunnel) HandleConn(conn net.Conn) {
-	defer conn.Close()
+	defer conn.Close() //nolint:errcheck
 	// Create a vsock connection to the target
 	vsockConn, err := vsock.Dial(v.cid, v.port, nil)
 	if err != nil {
 		v.logger.Error().Err(err).Msgf("Failed to dial vsock CID %d, Port %d", v.cid, v.port)
-		conn.Close()
 		return
 	}
 

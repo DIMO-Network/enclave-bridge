@@ -8,7 +8,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/config"
+	"github.com/DIMO-Network/enclave-bridge/pkg/config"
 	"github.com/caarlos0/env/v11"
 	"github.com/mdlayher/vsock"
 )
