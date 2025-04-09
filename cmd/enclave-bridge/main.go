@@ -36,35 +36,33 @@ func main() {
 	RunFiber(ctx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
 
 	// Wait for enclave to start and send config
-	logger := DefaultLogger("enclave-bridge")
+	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
 	logger.Info().Msg("Waiting for config...")
 	bridgeSettings, err := waitForConfig(ctx, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to wait for config.")
 	}
-	logger = DefaultLogger(bridgeSettings.AppName).With().Str("app", bridgeSettings.AppName).Str("component", "enclave-bridge").Logger()
+	logger = enclave.DefaultLogger(bridgeSettings.AppName, os.Stdout).With().Str("app", bridgeSettings.AppName).Str("component", "enclave-bridge").Logger()
 
-	// create a flag for the settings file
+	// Set up logger.
+	enclave.SetLevel(&logger, bridgeSettings.Logger.Level)
+	stdoutTunnel := enclave.NewStdoutTunnel(bridgeSettings.Logger.EnclaveDialPort)
+	runClientTunnel(groupCtx, stdoutTunnel, group)
 
-	SetLevel(&logger, bridgeSettings.LogLevel)
-	serverTunnels := make([]*enclave.ServerTunnel, 0, len(bridgeSettings.Servers))
+	// Set up server tunnels.
 	for _, serversSettings := range bridgeSettings.Servers {
-		serverTunnels = append(serverTunnels, enclave.NewServerTunnel(serversSettings.EnclaveCID, serversSettings.EnclaveListenPort, &logger))
-	}
-	clientTunnels := make([]*enclave.ClientTunnel, 0, len(bridgeSettings.Clients))
-	for _, clientSettings := range bridgeSettings.Clients {
-		clientTunnels = append(clientTunnels, enclave.NewClientTunnel(clientSettings.EnclaveDialPort, clientSettings.RequestTimeout, &logger))
+		serverTunnel := enclave.NewServerTunnel(serversSettings.EnclaveCID, serversSettings.EnclaveListenPort, &logger)
+		portStr := strconv.FormatUint(uint64(serversSettings.BridgeTCPPort), 10)
+		logger.Info().Str("port", portStr).Msgf("Starting Bridge server")
+		runServerTunnel(groupCtx, serverTunnel, ":"+portStr, group)
 	}
 
-	for _, serverTunnel := range serverTunnels {
-		portStr := strconv.FormatUint(uint64(serverTunnel.Port()), 10)
-		logger.Info().Str("port", portStr).Msgf("Starting bridge enclave")
-		runProxy(groupCtx, serverTunnel, ":"+portStr, group)
-	}
-	for _, clientTunnel := range clientTunnels {
-		portStr := strconv.FormatUint(uint64(clientTunnel.Port()), 10)
-		logger.Info().Str("port", portStr).Msgf("Starting bridge client")
-		runProxyClient(groupCtx, clientTunnel, group)
+	// Set up client tunnels.
+	for _, clientSettings := range bridgeSettings.Clients {
+		clientTunnel := enclave.NewClientTunnel(clientSettings.EnclaveDialPort, clientSettings.RequestTimeout, &logger)
+		portStr := strconv.FormatUint(uint64(clientSettings.EnclaveDialPort), 10)
+		logger.Info().Str("port", portStr).Msgf("Starting Bridge client")
+		runClientTunnel(groupCtx, clientTunnel, group)
 	}
 
 	err = group.Wait()
@@ -73,16 +71,20 @@ func main() {
 	}
 }
 
-func runProxyClient(ctx context.Context, proxy *enclave.ClientTunnel, group *errgroup.Group) {
+type tunnel interface {
+	ListenForTargetRequests(ctx context.Context) error
+}
+
+func runClientTunnel(ctx context.Context, proxy tunnel, group *errgroup.Group) {
 	group.Go(func() error {
 		return proxy.ListenForTargetRequests(ctx)
 	})
 }
 
-func runProxy(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
+func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
 	proxy := tcpproxy.Proxy{}
+	proxy.AddRoute(addr, target)
 	group.Go(func() error {
-		proxy.AddRoute(addr, target)
 		return proxy.Run()
 	})
 	group.Go(func() error {

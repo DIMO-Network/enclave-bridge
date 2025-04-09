@@ -14,11 +14,9 @@ import (
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
 	bridgecfg "github.com/DIMO-Network/sample-enclave-api/pkg/config"
 	"github.com/DIMO-Network/sample-enclave-api/pkg/enclave"
-	"github.com/DIMO-Network/sample-enclave-api/pkg/server"
 	"github.com/DIMO-Network/shared"
 	"github.com/gofiber/fiber/v2"
 	"github.com/mdlayher/vsock"
-	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -26,30 +24,34 @@ const (
 	// heartInterval is the interval to check if the enclave is still alive.
 	heartInterval    = 10 * time.Second
 	appName          = "sample-enclave"
-	serverTunnelPort = 5001
-	clientTunnelPort = 5001
+	serverTunnelPort = uint32(5001)
+	clientTunnelPort = uint32(5001)
+	loggerPort       = uint32(5002)
 )
 
 func main() {
-	logger := server.DefaultLogger(appName)
-	logger.Info().Msg("Starting enclave app")
+	tmpLogger := enclave.DefaultLogger(appName, os.Stdout)
+	tmpLogger.Debug().Msg("Starting enclave app")
 	cid, err := vsock.ContextID()
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to get context ID.")
+		tmpLogger.Fatal().Err(err).Msg("Failed to get context ID.")
 	}
 	settingsFile := flag.String("settings", "settings.yaml", "settings file")
 	flag.Parse()
 	settings, err := shared.LoadConfig[config.Settings](*settingsFile)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Couldn't load settings.")
+		tmpLogger.Fatal().Err(err).Msg("Couldn't load settings.")
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	bridgeSettings := bridgecfg.BridgeSettings{
-		AppName:  appName,
-		LogLevel: settings.LogLevel,
+		AppName: appName,
+		Logger: bridgecfg.LoggerSettings{
+			Level:           settings.LogLevel,
+			EnclaveDialPort: loggerPort,
+		},
 		Servers: []bridgecfg.ServerSettings{
 			{
 				EnclaveCID:        cid,
@@ -64,19 +66,23 @@ func main() {
 			},
 		},
 	}
-	logger.Info().Msgf("Sending config to bridge")
 	err = enclave.SendConfig(&bridgeSettings)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to setup bridge.")
+		tmpLogger.Fatal().Err(err).Msg("Failed to setup bridge.")
 	}
+	logger, cleanup, err := enclave.DefaultWithSocket(appName, loggerPort)
+	if err != nil {
+		tmpLogger.Fatal().Err(err).Msg("Failed to create logger socket.")
+	}
+	defer cleanup()
 
-	listener, err := vsock.Listen(uint32(serverTunnelPort), nil)
+	listener, err := vsock.Listen(serverTunnelPort, nil)
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("Couldn't listen on port %d.", serverTunnelPort)
 	}
-	logger.Debug().Msgf("Listening on %s", listener.Addr())
+	logger.Info().Msgf("Listening on %s", listener.Addr())
 
-	enclaveApp, err := app.CreateEnclaveWebServer(logger, uint32(clientTunnelPort))
+	enclaveApp, err := app.CreateEnclaveWebServer(&logger, clientTunnelPort)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't create enclave web server.")
 	}
@@ -84,23 +90,9 @@ func main() {
 	group, gCtx := errgroup.WithContext(ctx)
 	RunFiberWithListener(gCtx, enclaveApp, listener, group)
 
-	go heartbeatLog(ctx, logger)
 	err = group.Wait()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to run servers.")
-	}
-}
-
-func heartbeatLog(ctx context.Context, logger *zerolog.Logger) {
-	t := time.NewTicker(heartInterval)
-	for {
-		select {
-		case <-t.C:
-			logger.Debug().Msg("Enclave still alive.")
-		case <-ctx.Done():
-			t.Stop()
-			return
-		}
 	}
 }
 

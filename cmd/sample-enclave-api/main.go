@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
+	"github.com/DIMO-Network/sample-enclave-api/pkg/enclave"
 	"github.com/DIMO-Network/sample-enclave-api/pkg/server"
 	"github.com/DIMO-Network/shared"
 	"github.com/gofiber/fiber/v2"
@@ -35,7 +36,7 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't load settings.")
 	}
-	server.SetLevel(logger, settings.LogLevel)
+	enclave.SetLevel(logger, settings.LogLevel)
 
 	vsockProxy := NewServerTunnel(settings.EnclaveCID, settings.EnclavePort, logger)
 	vsockClientProxy := NewClientTunnel(settings.EnclavePort, 5*time.Minute, logger)
