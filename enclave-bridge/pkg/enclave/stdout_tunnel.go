@@ -32,7 +32,7 @@ func NewStdoutTunnel(port uint32) *StdoutTunnel {
 // HandleConn dial a vsock connection and copy data in both directions.
 func (c *StdoutTunnel) HandleConn(vsockConn net.Conn) error {
 	defer vsockConn.Close()
-	_, err := io.Copy(vsockConn, os.Stdout)
+	_, err := io.Copy(os.Stdout, vsockConn)
 	if err != nil {
 		return fmt.Errorf("failed to copy data from TCP target to vsock client: %w", err)
 	}
