@@ -16,7 +16,6 @@ import (
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
 	"github.com/gofiber/fiber/v2"
 	"github.com/mdlayher/vsock"
-	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -92,13 +91,11 @@ func main() {
 		tmpLogger.Fatal().Err(err).Msg("Failed to create logger socket.")
 	}
 	defer cleanup()
-	go heartbeatLog(ctx, &logger)
 	listener, err := vsock.Listen(serverTunnelPort, nil)
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("Couldn't listen on port %d.", serverTunnelPort)
 	}
 	logger.Info().Msgf("Listening on %s", listener.Addr())
-
 	enclaveApp, err := app.CreateEnclaveWebServer(&logger, clientTunnelPort)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't create enclave web server.")
@@ -128,17 +125,4 @@ func RunFiberWithListener(ctx context.Context, fiberApp *fiber.App, listener net
 		}
 		return nil
 	})
-}
-
-func heartbeatLog(ctx context.Context, logger *zerolog.Logger) {
-	t := time.NewTicker(heartInterval)
-	for {
-		select {
-		case <-t.C:
-			logger.Warn().Msg("Enclave still alive.")
-		case <-ctx.Done():
-			t.Stop()
-			return
-		}
-	}
 }
