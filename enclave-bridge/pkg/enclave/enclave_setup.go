@@ -26,6 +26,7 @@ type EnclaveSetup[T any] struct {
 
 // Start starts the enclave-bridge setup process.
 func (e *EnclaveSetup[T]) Start() error {
+	e.ready = make(chan struct{})
 	var err error
 	e.conn, err = vsock.Dial(DefaultHostCID, InitPort, nil)
 	if err != nil {
