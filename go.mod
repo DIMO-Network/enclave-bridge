@@ -12,7 +12,6 @@ require (
 	github.com/prometheus/client_golang v1.21.1
 	github.com/rs/zerolog v1.34.0
 	golang.org/x/sync v0.12.0
-	gopkg.in/yaml.v2 v2.4.0
 	inet.af/tcpproxy v0.0.0-20231102063150-2862066fc2a9
 )
 
