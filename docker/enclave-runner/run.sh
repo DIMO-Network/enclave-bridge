@@ -31,15 +31,13 @@ start() {
       --eif-path $EIF_PATH --enclave-cid $ENCLAVE_CID --attach-console &
     echo 'Enclave started in debug mode.'
   fi
-  # pipe to stdout to stderr  
-  nitro-cli describe-enclaves 1>&2
-  nitro-cli describe-enclaves > /dev/null 2>&1
-
   # wait forever
   while true
   do
-    tail -f /dev/null & wait ${!}
+    nitro-cli describe-enclaves 2>&1 
+    sleep 15
   done
+
 }
 
 healthcheck() {
