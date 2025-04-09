@@ -8,7 +8,7 @@ bridge:
   image:
     repository: dimozone/enclave-bridge
     pullPolicy: IfNotPresent
-    tag: 2da16cf
+    tag: 036a1bf
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -35,7 +35,7 @@ app:
   image:
     repository: dimozone/sample-enclave-app-enclave
     pullPolicy: IfNotPresent
-    tag: 2da16cf
+    tag: 036a1bf
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
