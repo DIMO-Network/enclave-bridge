@@ -33,7 +33,7 @@ bridge:
       memory: 256Mi
 app:
   image:
-    repository: dimozone/sample-enclave-app-enclave
+    repository: dimozone/sample-enclave-api-enclave
     pullPolicy: IfNotPresent
     tag: bbef8c9
   securityContext:
