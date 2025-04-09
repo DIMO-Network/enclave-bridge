@@ -1,11 +1,10 @@
 package config
 
-// Settings contains the application config
+// Settings contains the application config.
 type Settings struct {
-	Environment string `yaml:"ENVIRONMENT"`
-	LogLevel    string `yaml:"LOG_LEVEL"`
-	Port        int    `yaml:"PORT"`
-	MonPort     int    `yaml:"MON_PORT"`
-
-	EnclaveCID uint32 `yaml:"ENCLAVE_CID"`
+	Environment string `env:"ENVIRONMENT" yaml:"environment"`
+	LogLevel    string `env:"LOG_LEVEL"   yaml:"logLevel"`
+	Port        int    `env:"PORT"        yaml:"port"`
+	MonPort     int    `env:"MON_PORT"    yaml:"monPort"`
+	EnclaveCID  uint32 `env:"ENCLAVE_CID" yaml:"enclaveCid"`
 }

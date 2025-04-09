@@ -1,6 +1,13 @@
 package config
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"regexp"
+	"strings"
+	"time"
+)
 
 // BridgeSettings is the configuration for setting up the bridge.
 type BridgeSettings struct {
@@ -27,4 +34,42 @@ type ClientSettings struct {
 type LoggerSettings struct {
 	Level           string `json:"level"`
 	EnclaveDialPort uint32 `json:"enclaveDialPort"`
+}
+
+// SerializeEnvironment creates a key value JSON representation of environment variables
+// if excludePattern is provided, it will exclude any environment variables that match the pattern.
+func SerializeEnvironment(excludePattern string) ([]byte, error) {
+	envMap := make(map[string]string)
+
+	// Compile exclude regex if provided
+	var excludeRegex *regexp.Regexp
+	var err error
+	if excludePattern != "" {
+		excludeRegex, err = regexp.Compile(excludePattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid exclude pattern: %w", err)
+		}
+	}
+
+	// Get all environment variables
+	for _, envEntry := range os.Environ() {
+		parts := strings.SplitN(envEntry, "=", 2)
+		if len(parts) != 2 {
+			continue // Skip invalid entries
+		}
+
+		key, value := parts[0], parts[1]
+
+		// Apply exclude pattern if configured
+		if excludeRegex != nil && excludeRegex.MatchString(key) {
+			continue // Skip this variable
+		}
+
+		envMap[key] = value
+	}
+	mapBytes, err := json.Marshal(envMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal environment map: %w", err)
+	}
+	return mapBytes, nil
 }

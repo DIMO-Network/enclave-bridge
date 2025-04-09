@@ -68,7 +68,7 @@ spec:
               port: mon-http
           resources:
             {{- toYaml .Values.bridge.resources | nindent 12 }}
-        - name: sample-enclave-app
+        - name: sample-enclave-api
           securityContext:
             {{- toYaml .Values.app.securityContext | nindent 12 }}
           image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag | default .Chart.AppVersion }}"

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/DIMO-Network/sample-enclave-api/enclave-bridge/pkg/enclave"
 	"github.com/DIMO-Network/sample-enclave-api/internal/app"
 	"github.com/DIMO-Network/sample-enclave-api/internal/config"
-	"github.com/DIMO-Network/shared"
 	"github.com/gofiber/fiber/v2"
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
@@ -37,12 +35,12 @@ func main() {
 	if err != nil {
 		tmpLogger.Fatal().Err(err).Msg("Failed to get context ID.")
 	}
-	settingsFile := flag.String("settings", "settings.yaml", "settings file")
-	flag.Parse()
-	settings, err := shared.LoadConfig[config.Settings](*settingsFile)
+	enclaveSetup := enclave.EnclaveSetup[config.Settings]{}
+	err = enclaveSetup.Start()
 	if err != nil {
-		tmpLogger.Fatal().Err(err).Msg("Couldn't load settings.")
+		tmpLogger.Fatal().Err(err).Msg("Failed to setup bridge.")
 	}
+	settings := enclaveSetup.Config()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -67,7 +65,12 @@ func main() {
 			},
 		},
 	}
-	err = enclave.SendConfig(&bridgeSettings)
+
+	err = enclaveSetup.SendBridgeConfig(&bridgeSettings)
+	if err != nil {
+		tmpLogger.Fatal().Err(err).Msg("Failed to setup bridge.")
+	}
+	err = enclaveSetup.WaitForBridgeSetup()
 	if err != nil {
 		tmpLogger.Fatal().Err(err).Msg("Failed to setup bridge.")
 	}

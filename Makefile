@@ -4,7 +4,7 @@ SHELL := /bin/bash
 PATHINSTBIN = $(abspath ./bin)
 export PATH := $(PATHINSTBIN):$(PATH)
 
-BIN_NAME					?= sample-enclave-app
+BIN_NAME					?= sample-enclave-api
 DEFAULT_INSTALL_DIR			:= $(go env GOPATH)/$(PATHINSTBIN)
 DEFAULT_ARCH				:= $(shell go env GOARCH)
 DEFAULT_GOOS				:= $(shell go env GOOS)
@@ -62,11 +62,11 @@ docker: dep ## build docker image
 	@docker tag dimozone/$(BIN_NAME):$(VER_CUT) dimozone/$(BIN_NAME):latest
 
 docker-enclave: dep ## build docker image
-	@docker build -f ./docker/enclave-runner/Dockerfile . --no-cache --progress=plain --build-arg ENCLAVE_NAME=sample-enclave-app --build-arg ENCLAVE_TAG=latest --build-arg ENCLAVE_IMAGE=dimozone/sample-enclave-runtime --platform linux/amd64 -t dimozone/sample-enclave-app:$(VER_CUT)
-	# @docker tag dimozone/sample-enclave-app:$(VER_CUT) dimozone/sample-enclave-app:latest
+	@docker build -f ./docker/enclave-runner/Dockerfile . --no-cache --progress=plain --build-arg ENCLAVE_NAME=sample-enclave-api --build-arg ENCLAVE_TAG=latest --build-arg ENCLAVE_IMAGE=dimozone/sample-enclave-runtime --platform linux/amd64 -t dimozone/sample-enclave-api:$(VER_CUT)
+	# @docker tag dimozone/sample-enclave-api:$(VER_CUT) dimozone/sample-enclave-api:latest
 
 docker-runtime-amd64: dep ## build docker image for amd64 platform
-	@docker build --platform linux/amd64 --no-cache --progress plain -f ./docker/runtime-dockerfile . -t dimozone/sample-enclave-app:latest
+	@docker build --platform linux/amd64 --no-cache --progress plain -f ./docker/runtime-dockerfile . -t dimozone/sample-enclave-api:latest
 
 tools-golangci-lint: ## install golangci-lint
 	@mkdir -p $(PATHINSTBIN)

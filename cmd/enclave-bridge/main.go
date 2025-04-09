@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -27,6 +28,8 @@ const (
 	defaultMonPort = 8888
 )
 
+type ReadyFunc func() error
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -37,7 +40,7 @@ func main() {
 	// Wait for enclave to start and send config
 	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
 	logger.Info().Msg("Waiting for config...")
-	bridgeSettings, err := waitForConfig(ctx, &logger)
+	bridgeSettings, readyFunc, err := SetupEnclave(ctx, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to wait for config.")
 	}
@@ -64,6 +67,11 @@ func main() {
 		runClientTunnel(groupCtx, clientTunnel, group)
 	}
 
+	err = readyFunc()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to ACK to enclave.")
+	}
+
 	err = group.Wait()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to run servers.")
@@ -75,22 +83,31 @@ type tunnel interface {
 }
 
 func runClientTunnel(ctx context.Context, proxy tunnel, group *errgroup.Group) {
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(1)
 	group.Go(func() error {
+		waitGroup.Done()
 		return proxy.ListenForTargetRequests(ctx)
 	})
+	waitGroup.Wait()
 }
 
 func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
 	proxy := tcpproxy.Proxy{}
 	proxy.AddRoute(addr, target)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(2)
 	group.Go(func() error {
+		waitGroup.Done()
 		return proxy.Run()
 	})
 	group.Go(func() error {
+		waitGroup.Wait()
 		<-ctx.Done()
 		proxy.Close()
 		return nil
 	})
+	waitGroup.Wait()
 }
 
 func CreateMonitoringServer(port string) *fiber.App {
@@ -101,14 +118,14 @@ func CreateMonitoringServer(port string) *fiber.App {
 }
 
 // waitForConfig starts listening on the default vsock port for a config file and returns the config.
-func waitForConfig(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSettings, error) {
+func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSettings, func() error, error) {
 	var conn net.Conn
 	var listener *vsock.Listener
 	var err error
 	for {
 		listener, err = vsock.ListenContextID(enclave.DefaultHostCID, enclave.InitPort, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to listen for target requests: %w", err)
+			return nil, nil, fmt.Errorf("failed to listen for target requests: %w", err)
 		}
 		conn, err = listen(ctx, listener)
 		if err == nil {
@@ -117,24 +134,40 @@ func waitForConfig(ctx context.Context, logger *zerolog.Logger) (*config.BridgeS
 		logger.Error().Err(err).Msg("Failed to listen for target requests")
 		time.Sleep(1 * time.Second)
 	}
-	defer listener.Close()
-	defer conn.Close()
-	logger.Info().Msg("Accepted connection")
+	logger.Info().Msg("Sending Environment to enclave")
+	environment, err := config.SerializeEnvironment("")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to serialize environment: %w", err)
+	}
+	_, err = conn.Write(append(environment, '\n'))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to write environment: %w", err)
+	}
+	logger.Info().Msg("Waiting for enclave to send config")
 	// read until a new line
 	reader := bufio.NewReader(conn)
 	configBytes, err := reader.ReadBytes('\n')
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
+		return nil, nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
 	var config config.BridgeSettings
 	err = json.Unmarshal(configBytes, &config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+		return nil, nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	logger.Debug().Interface("config", config).Msg("Received config")
-
-	return &config, nil
+	readyFunc := func() error {
+		defer listener.Close()
+		defer conn.Close()
+		// Send ACK to enclave
+		_, err = conn.Write([]byte{enclave.ACK})
+		if err != nil {
+			return fmt.Errorf("failed to send ACK to enclave: %w", err)
+		}
+		return nil
+	}
+	return &config, readyFunc, nil
 }
 
 func listen(ctx context.Context, listener *vsock.Listener) (net.Conn, error) {

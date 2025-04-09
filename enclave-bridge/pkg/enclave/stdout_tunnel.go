@@ -34,7 +34,7 @@ func (c *StdoutTunnel) HandleConn(vsockConn net.Conn) error {
 	defer vsockConn.Close()
 	_, err := io.Copy(os.Stdout, vsockConn)
 	if err != nil {
-		return fmt.Errorf("failed to copy data from TCP target to vsock client: %w", err)
+		return fmt.Errorf("failed to copy data from vsock to stdout: %w", err)
 	}
 	return nil
 }

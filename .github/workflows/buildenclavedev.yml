@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  APP_NAME: sample-enclave-app
+  APP_NAME: sample-enclave-api
 
 jobs:
   build-app:
