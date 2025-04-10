@@ -23,19 +23,20 @@ func DefaultLogger(appName string, writer io.Writer) zerolog.Logger {
 	return logger
 }
 
-// SetLevel sets the log level for the logger if the level is not empty.
-func SetLevel(logger *zerolog.Logger, level string) {
+// SetLoggerLevel sets the log level for the logger if the level is not empty.
+func SetLoggerLevel(level string) error {
 	if level != "" {
 		lvl, err := zerolog.ParseLevel(level)
 		if err != nil {
-			logger.Fatal().Err(err).Msg("Failed to parse log level.")
+			return fmt.Errorf("failed to parse log level: %w", err)
 		}
 		zerolog.SetGlobalLevel(lvl)
 	}
+	return nil
 }
 
-// DefaultWithSocket creates a new logger that logs to a vsock socket.
-func DefaultWithSocket(appName string, port uint32) (zerolog.Logger, func(), error) {
+// DefaultLoggerWithSocket creates a new logger that logs to a vsock socket.
+func DefaultLoggerWithSocket(appName string, port uint32) (zerolog.Logger, func(), error) {
 	conn, err := vsock.Dial(DefaultHostCID, port, nil)
 	if err != nil {
 		return zerolog.Logger{}, nil, fmt.Errorf("failed to dial socket: %w", err)

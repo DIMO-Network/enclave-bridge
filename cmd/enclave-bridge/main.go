@@ -48,7 +48,10 @@ func main() {
 	logger = enclave.DefaultLogger(bridgeSettings.AppName, os.Stdout).With().Str("component", "enclave-bridge").Logger()
 
 	// Set up logger.
-	enclave.SetLevel(&logger, bridgeSettings.Logger.Level)
+	err = enclave.SetLoggerLevel(bridgeSettings.Logger.Level)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to set logger level.")
+	}
 	stdoutTunnel := enclave.NewStdoutTunnel(bridgeSettings.Logger.EnclaveDialPort, logger.With().Str("component", "stdout-tunnel").Logger())
 	runClientTunnel(groupCtx, stdoutTunnel, group)
 
