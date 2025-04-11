@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -29,22 +28,21 @@ const (
 	defaultMonPort = 8888
 )
 
+// ReadyFunc is a function that returns an error if the enclave is not ready.
 type ReadyFunc func() error
 
 func main() {
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	group, groupCtx := errgroup.WithContext(ctx)
 
+	// Start monitoring server
 	monApp := CreateMonitoringServer(strconv.Itoa(defaultMonPort))
 	RunFiber(ctx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
-	// Wait for enclave to start and send config
+
 	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
 
-	// TODO(kevin): remove this ping something
-	_, _ = http.Get("https://identity-api.dimo.zone")
-
+	// Wait for enclave to start and send config
 	logger.Info().Msg("Waiting for config...")
 	bridgeSettings, readyFunc, err := SetupEnclave(ctx, &logger)
 	if err != nil {
