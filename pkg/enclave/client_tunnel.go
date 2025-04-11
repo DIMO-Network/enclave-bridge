@@ -71,11 +71,12 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 	}
 	defer targetConn.Close() //nolint:errcheck
 
-	_, err = targetConn.Write([]byte{ACK})
+	_, err = vsockConn.Write([]byte{ACK})
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to write ACK to target service")
 		return
 	}
+
 	// Create error group for goroutine coordination
 	group, _ := errgroup.WithContext(requestCtx)
 
