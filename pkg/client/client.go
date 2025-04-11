@@ -21,6 +21,9 @@ func defaultConfig() *tls.Config {
 
 // NewHTTPClient creates a new HTTP client that tunnels connections to the enclave Host on the given port.
 func NewHTTPClient(port uint32, tlsConfig *tls.Config) *http.Client {
+	if tlsConfig == nil {
+		tlsConfig = defaultConfig()
+	}
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
