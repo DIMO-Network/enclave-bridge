@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DIMO-Network/enclave-bridge/pkg/enclave"
 	"github.com/mdlayher/vsock"
 )
 
@@ -81,6 +83,13 @@ func dialVsock(port uint32, network, addr string) (net.Conn, error) {
 	_, err = vsockConn.Write([]byte(addr + "\n"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to write to vsock: %w", err)
+	}
+	resp, err := bufio.NewReader(vsockConn).ReadByte()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read from vsock: %w", err)
+	}
+	if resp != enclave.ACK {
+		return nil, fmt.Errorf("invalid response from vsock: %d", resp)
 	}
 	return vsockConn, nil
 }

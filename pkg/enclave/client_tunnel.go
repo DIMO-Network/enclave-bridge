@@ -71,23 +71,28 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 	}
 	defer targetConn.Close() //nolint:errcheck
 
+	_, err = targetConn.Write([]byte{ACK})
+	if err != nil {
+		c.logger.Error().Err(err).Msg("Failed to write ACK to target service")
+		return
+	}
 	// Create error group for goroutine coordination
 	group, _ := errgroup.WithContext(requestCtx)
-
-	// From TCP target to vsock client
-	group.Go(func() error {
-		_, err := io.Copy(vsockConn, targetConn)
-		if err != nil {
-			return fmt.Errorf("failed to copy data from TCP target to vsock client: %w", err)
-		}
-		return nil
-	})
 
 	// From vsock client to TCP target
 	group.Go(func() error {
 		_, err := io.Copy(targetConn, vsockConn)
 		if err != nil {
 			return fmt.Errorf("failed to copy data from vsock client to TCP target: %w", err)
+		}
+		return nil
+	})
+
+	// From TCP target to vsock client
+	group.Go(func() error {
+		_, err := io.Copy(vsockConn, targetConn)
+		if err != nil {
+			return fmt.Errorf("failed to copy data from TCP target to vsock client: %w", err)
 		}
 		return nil
 	})

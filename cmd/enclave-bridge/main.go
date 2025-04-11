@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -31,6 +32,7 @@ const (
 type ReadyFunc func() error
 
 func main() {
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -39,8 +41,11 @@ func main() {
 	RunFiber(ctx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
 	// Wait for enclave to start and send config
 	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
-	logger.Info().Msg("Waiting for config...")
 
+	// TODO(kevin): remove this ping something
+	_, _ = http.Get("https://identity-api.dimo.zone")
+
+	logger.Info().Msg("Waiting for config...")
 	bridgeSettings, readyFunc, err := SetupEnclave(ctx, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to wait for config.")
