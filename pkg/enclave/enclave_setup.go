@@ -15,7 +15,7 @@ import (
 
 const (
 	// ACK is the ACK message sent by the enclave-bridge.
-	ACK = 1
+	ACK = 0x06
 	// InitPort is the port used to initialize the enclave-bridge.
 	InitPort = uint32(5000)
 )
