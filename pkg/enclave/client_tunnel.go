@@ -118,15 +118,20 @@ func (c *ClientTunnel) ListenForTargetRequests(ctx context.Context) error {
 	}()
 
 	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return nil
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			conn, err := listener.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return nil
+				}
+				c.logger.Error().Err(err).Msg("Failed to accept target request")
+				continue
 			}
-			c.logger.Error().Err(err).Msg("Failed to accept target request")
-			continue
-		}
 
-		go c.HandleConn(ctx, conn)
+			go c.HandleConn(ctx, conn)
+		}
 	}
 }
