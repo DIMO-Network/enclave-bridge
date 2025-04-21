@@ -36,6 +36,14 @@ type LoggerSettings struct {
 	EnclaveDialPort uint32 `json:"enclaveDialPort"`
 }
 
+// CertSettings contains the settings for the certificates.
+type CertSettings struct {
+	// CertFile is the path to the certificate file.
+	CertFile string `env:"CERT_FILE" yaml:"certFile"`
+	// KeyFile is the path to the key file for the certificate.
+	KeyFile string `env:"KEY_FILE"  yaml:"keyFile"`
+}
+
 // SerializeEnvironment creates a key value JSON representation of environment variables
 // if excludePattern is provided, it will exclude any environment variables that match the pattern.
 func SerializeEnvironment(excludePattern string) ([]byte, error) {
