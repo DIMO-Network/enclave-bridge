@@ -3,7 +3,6 @@ module github.com/DIMO-Network/enclave-bridge
 go 1.24
 
 require (
-	github.com/DIMO-Network/odometer-attester v0.0.0-20250417184342-5301ef3407af
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/ethereum/go-ethereum v1.15.7
 	github.com/go-acme/lego v2.7.2+incompatible
