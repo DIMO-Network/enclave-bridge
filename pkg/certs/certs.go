@@ -10,7 +10,7 @@ import (
 type GetCertificateFunc func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 
 // GetCertificatesFromSettings returns a function that returns a certificate for the given settings.
-func GetCertificatesFromSettings(settings *config.CertSettings) (GetCertificateFunc, error) {
+func GetCertificatesFromSettings(settings *config.LocalCertConfig) (GetCertificateFunc, error) {
 	cert, err := tls.LoadX509KeyPair(settings.CertFile, settings.KeyFile)
 	if err != nil {
 		return nil, err

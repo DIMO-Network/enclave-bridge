@@ -24,6 +24,6 @@ type ACMEConfig struct {
 	CADirURL string `env:"CA_DIR_URL" yaml:"caDirUrl"`
 	// Email for the ACME account
 	Email string `env:"EMAIL" yaml:"email"`
-	// HostName for the ACME account
-	HostName string `env:"HOST_NAME" yaml:"hostName"`
+	// Domains for the ACME account
+	Domains []string `env:"DOMAINS" yaml:"domains"`
 }

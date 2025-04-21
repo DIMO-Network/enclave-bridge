@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DIMO-Network/enclave-bridge/pkg/config"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/lego"
@@ -77,18 +78,16 @@ type CertManager struct {
 
 // CertManagerConfig contains configuration options for creating a new ACMECertManager.
 type CertManagerConfig struct {
+	*config.ACMEConfig
 	Key        *ecdsa.PrivateKey
 	HTTPClient *http.Client
 	Logger     *zerolog.Logger
-	Email      string
-	CADirURL   string
-	Domains    []string
 }
 
 // NewCertManager configures an ACME client, creates & registers a new ACME
 // user. After creating a client you must call ObtainCertificate and
 // RenewCertificate yourself.
-func NewCertManager(acmeConfig CertManagerConfig) (*CertManager, error) {
+func NewCertManager(acmeConfig *CertManagerConfig) (*CertManager, error) {
 	user := &LegoUser{
 		email: acmeConfig.Email,
 		key:   acmeConfig.Key,
