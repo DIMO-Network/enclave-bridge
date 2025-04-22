@@ -3,9 +3,7 @@ package enclave
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net"
 
 	"github.com/DIMO-Network/enclave-bridge/pkg/config"
@@ -21,15 +19,15 @@ const (
 )
 
 // EnclaveSetup is a struct that contains the enclave-bridge setup process.
-type EnclaveSetup[T any] struct {
-	enclaveConfig T
-	conn          net.Conn
-	ready         chan struct{}
-	err           error
+type EnclaveSetup struct {
+	conn        net.Conn
+	ready       chan struct{}
+	err         error
+	environment map[string]string
 }
 
 // Start starts the enclave-bridge setup process.
-func (e *EnclaveSetup[T]) Start(initPort uint32) error {
+func (e *EnclaveSetup) Start(initPort uint32) error {
 	e.ready = make(chan struct{})
 	var err error
 	e.conn, err = vsock.Dial(DefaultHostCID, initPort, nil)
@@ -39,34 +37,41 @@ func (e *EnclaveSetup[T]) Start(initPort uint32) error {
 	reader := bufio.NewReader(e.conn)
 	envSettings, err := reader.ReadString('\n')
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		return fmt.Errorf("failed to wait for other side to close connection: %w", err)
+		return fmt.Errorf("failed to read environment variables: %w", err)
 	}
-	environment := map[string]string{}
-	err = json.Unmarshal([]byte(envSettings), &environment)
+	e.environment = map[string]string{}
+	err = json.Unmarshal([]byte(envSettings), &e.environment)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal environment variables: %w", err)
 	}
 
-	envOpts := env.Options{
-		Environment: environment,
+	return nil
+}
+
+// Environment returns the environment variables from the enclave-bridge.
+func (e *EnclaveSetup) Environment() map[string]string {
+	return e.environment
+}
+
+// SendError sends an error message to the enclave-bridge instead of the config.
+func (e *EnclaveSetup) SendError(errorMsg string) error {
+	if e.conn == nil {
+		return fmt.Errorf("connection not established")
 	}
-	e.enclaveConfig, err = env.ParseAsWithOptions[T](envOpts)
+	errSettings := config.BridgeSettings{Error: errorMsg}
+	marshaledError, err := json.Marshal(errSettings)
 	if err != nil {
-		return fmt.Errorf("failed to parse environment variables: %w", err)
+		return fmt.Errorf("failed to marshal error: %w", err)
+	}
+	_, err = e.conn.Write(marshaledError)
+	if err != nil {
+		return fmt.Errorf("failed to send error: %w", err)
 	}
 	return nil
 }
 
-// Config returns the enclave-bridge config.
-func (e *EnclaveSetup[T]) Config() T {
-	return e.enclaveConfig
-}
-
 // SendBridgeConfig sends the config to the enclave-bridge.
-func (e *EnclaveSetup[T]) SendBridgeConfig(config *config.BridgeSettings) error {
+func (e *EnclaveSetup) SendBridgeConfig(config *config.BridgeSettings) error {
 	if e.conn == nil {
 		return fmt.Errorf("connection not established")
 	}
@@ -95,13 +100,13 @@ func (e *EnclaveSetup[T]) SendBridgeConfig(config *config.BridgeSettings) error 
 }
 
 // WaitForBridgeSetup waits for the enclave-bridge to be ready.
-func (e *EnclaveSetup[T]) WaitForBridgeSetup() error {
+func (e *EnclaveSetup) WaitForBridgeSetup() error {
 	<-e.ready
 	return e.err
 }
 
 // markReady marks the enclave-bridge as ready.
-func (e *EnclaveSetup[T]) markReady() {
+func (e *EnclaveSetup) markReady() {
 	select {
 	case <-e.ready:
 		return
@@ -111,6 +116,19 @@ func (e *EnclaveSetup[T]) markReady() {
 }
 
 // Close closes the connection to the enclave-bridge.
-func (e *EnclaveSetup[T]) Close() error {
+func (e *EnclaveSetup) Close() error {
 	return e.conn.Close()
+}
+
+// ConfigFromEnvMap parses the environment variables from the enclave-bridge and returns a struct.
+func ConfigFromEnvMap[T any](envMap map[string]string) (T, error) {
+	var zeroValue T
+	envOpts := env.Options{
+		Environment: envMap,
+	}
+	enclaveConfig, err := env.ParseAsWithOptions[T](envOpts)
+	if err != nil {
+		return zeroValue, fmt.Errorf("failed to parse environment variables: %w", err)
+	}
+	return enclaveConfig, nil
 }

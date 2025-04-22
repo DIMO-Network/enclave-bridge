@@ -11,10 +11,16 @@ import (
 
 // BridgeSettings is the configuration for setting up the bridge.
 type BridgeSettings struct {
-	AppName string           `json:"appName"`
-	Logger  LoggerSettings   `json:"logger"`
+	// AppName is the name of the application.
+	AppName string `json:"appName"`
+	// Logger is the configuration for the logger.
+	Logger LoggerSettings `json:"logger"`
+	// Servers is the configuration for the servers.
 	Servers []ServerSettings `json:"servers"`
+	// Clients is the configuration for the clients.
 	Clients []ClientSettings `json:"clients"`
+	// Error is an optional error message to display when the enclave failed to configure.
+	Error string `json:"error"`
 }
 
 // ServerSettings is the configuration for setting up the server.

@@ -172,6 +172,9 @@ func SetupEnclave(ctx context.Context, logger *zerolog.Logger) (*config.BridgeSe
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	if settings.Error != "" {
+		return nil, nil, fmt.Errorf("enclave failed to configure: %s", settings.Error)
+	}
 	readyFunc := func() error {
 		logger.Debug().Msg("Sending start ACK to enclave")
 		defer listener.Close() //nolint:errcheck
