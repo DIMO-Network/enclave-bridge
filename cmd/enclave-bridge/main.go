@@ -97,31 +97,34 @@ type tunnel interface {
 }
 
 func runClientTunnel(ctx context.Context, proxy tunnel, group *errgroup.Group) {
-	var waitGroup sync.WaitGroup
-	waitGroup.Add(1)
+	// No need for waitGroup since errgroup handles waiting for goroutines
 	group.Go(func() error {
-		waitGroup.Done()
 		return proxy.ListenForTargetRequests(ctx)
 	})
-	waitGroup.Wait()
 }
 
 func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
 	proxy := tcpproxy.Proxy{}
 	proxy.AddRoute(addr, target)
-	var waitGroup sync.WaitGroup
-	waitGroup.Add(2)
+
+	// First goroutine to run the proxy
 	group.Go(func() error {
-		waitGroup.Done()
-		return proxy.Run()
-	})
-	group.Go(func() error {
-		waitGroup.Done()
-		<-ctx.Done()
-		_ = proxy.Close()
+		err := proxy.Run()
+		if err != nil {
+			return fmt.Errorf("proxy run failed: %w", err)
+		}
 		return nil
 	})
-	waitGroup.Wait()
+
+	// Second goroutine to handle shutdown
+	group.Go(func() error {
+		<-ctx.Done()
+		err := proxy.Close()
+		if err != nil {
+			return fmt.Errorf("proxy close failed: %w", err)
+		}
+		return nil
+	})
 }
 
 // CreateMonitoringServer creates a fiber server that listens for requests on the given port.
@@ -145,34 +148,46 @@ func StartBridge(parentCtx context.Context, logger *zerolog.Logger) error {
 		}
 		initPortInt = uint32(initPortInt64)
 	}
-	var cancelFunc context.CancelFunc
+	cancelFunc := func() {}
 	var wg sync.WaitGroup
+	var bridgeMutex sync.Mutex
 
 	listener, err = vsock.ListenContextID(enclave.DefaultHostCID, initPortInt, nil)
 	if err != nil {
 		return fmt.Errorf("failed to listen for target requests: %w", err)
 	}
+	defer listener.Close() //nolint:errcheck
+
 	logger.Info().Msg("Waiting for new connection...")
 	// accept connections until the context is canceled
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			// Check if the context was canceled
+			if parentCtx.Err() != nil {
+				return parentCtx.Err()
+			}
 			logger.Error().Err(err).Msg("Failed to accept target request")
 			time.Sleep(1 * time.Second)
 			continue
 		}
 		logger.Info().Msg("Starting new bridge")
+
+		// Lock mutex to ensure only one bridge transition happens at a time
+		bridgeMutex.Lock()
 		// on accept stop the currently running bridge
 		cancelFunc()
 		wg.Wait()
 		var bridgeCtx context.Context
 		bridgeCtx, cancelFunc = context.WithCancel(parentCtx)
 		wg.Add(1)
+		bridgeMutex.Unlock()
+
 		go func() {
 			defer wg.Done()
 			err := handleInit(bridgeCtx, logger, conn)
 			if err != nil {
-				// if we are restarting do to a new connection just log the error and continue
+				// if we are restarting due to a new connection just log the error and continue
 				// else this should be a fatal error
 				if errors.Is(err, context.Canceled) {
 					logger.Error().Err(err).Msg("Bridge context canceled")
@@ -188,6 +203,7 @@ func handleInit(ctx context.Context, logger *zerolog.Logger, conn net.Conn) erro
 	go func() {
 		<-ctx.Done()
 		logger.Info().Msg("Context canceled, shutting down bridge instance")
+		conn.Close() //nolint:errcheck
 	}()
 	settings, readyFunc, err := completeHandshake(ctx, logger, conn)
 	if err != nil {
@@ -223,7 +239,13 @@ func completeHandshake(ctx context.Context, logger *zerolog.Logger, conn net.Con
 	}
 	readyFunc := func() error {
 		logger.Debug().Msg("Sending start ACK to enclave")
-		defer conn.Close() //nolint:errcheck
+		defer func() {
+			closeErr := conn.Close()
+			if closeErr != nil {
+				logger.Warn().Err(closeErr).Msg("Error closing connection after ACK")
+			}
+		}()
+
 		// Send ACK to enclave
 		err = CtxWrite(ctx, conn, []byte{enclave.ACK})
 		if err != nil {
@@ -254,10 +276,14 @@ func RunFiber(ctx context.Context, fiberApp *fiber.App, addr string, group *errg
 // CtxWrite writes to a connection and returns after the write has completed or the context is canceled.
 func CtxWrite(ctx context.Context, conn net.Conn, data []byte) error {
 	writeChan := make(chan error)
+	defer close(writeChan)
 	go func() {
 		_, err := conn.Write(data)
-		writeChan <- err
+		if ctx.Err() == nil {
+			writeChan <- err
+		}
 	}()
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -266,20 +292,27 @@ func CtxWrite(ctx context.Context, conn net.Conn, data []byte) error {
 	}
 }
 
-// CtxReadUntil reads from a connection until the context is canceled.
+// CtxReadBytes reads from a connection until the context is canceled.
 func CtxReadBytes(ctx context.Context, conn net.Conn, delim byte) ([]byte, error) {
 	reader := bufio.NewReader(conn)
-	readChan := make(chan error)
-	var bytes []byte
+	// Use channels for both result and error to avoid race conditions
+	byteChan := make(chan []byte, 1)
+	errChan := make(chan error, 1)
+	defer close(byteChan)
+	defer close(errChan)
+
 	go func() {
-		var err error
-		bytes, err = reader.ReadBytes(delim)
-		readChan <- err
+		data, err := reader.ReadBytes(delim)
+		if ctx.Err() == nil {
+			byteChan <- data
+			errChan <- err
+		}
 	}()
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case err := <-readChan:
-		return bytes, err
+	case data := <-byteChan:
+		return data, <-errChan
 	}
 }
