@@ -70,7 +70,7 @@ func (v *ServerTunnel) HandleConn(conn net.Conn) {
 	// From TCP proxy to vsock server
 	group.Go(func() error {
 		buf := v.pool.Get().(*[]byte)
-		defer v.pool.Put(&buf)
+		defer v.pool.Put(buf)
 		_, err := io.CopyBuffer(vsockConn, conn, *buf)
 		if err != nil {
 			return fmt.Errorf("failed to copy data from TCP proxy to vsock server: %w", err)
@@ -81,7 +81,7 @@ func (v *ServerTunnel) HandleConn(conn net.Conn) {
 	// From vsock server to TCP client
 	group.Go(func() error {
 		buf := v.pool.Get().(*[]byte)
-		defer v.pool.Put(&buf)
+		defer v.pool.Put(buf)
 		_, err := io.CopyBuffer(conn, vsockConn, *buf)
 		if err != nil {
 			return fmt.Errorf("failed to copy data from vsock server to TCP client: %w", err)

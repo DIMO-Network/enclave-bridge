@@ -38,7 +38,7 @@ func NewStdoutTunnel(port uint32, logger zerolog.Logger) *StdoutTunnel {
 func (c *StdoutTunnel) HandleConn(vsockConn net.Conn) {
 	defer vsockConn.Close() //nolint:errcheck
 	buf := c.pool.Get().(*[]byte)
-	defer c.pool.Put(&buf)
+	defer c.pool.Put(buf)
 	_, err := io.CopyBuffer(os.Stdout, vsockConn, *buf)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to copy data from vsock to stdout")

@@ -98,7 +98,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 	// From TCP target to vsock client
 	group.Go(func() error {
 		buf := c.pool.Get().(*[]byte)
-		defer c.pool.Put(&buf)
+		defer c.pool.Put(buf)
 		_, err := io.CopyBuffer(vsockConn, targetConn, *buf)
 		if err != nil {
 			return fmt.Errorf("failed to copy data from TCP target to vsock client: %w", err)
