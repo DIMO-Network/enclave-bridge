@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/mdlayher/vsock"
@@ -17,10 +18,12 @@ import (
 // DefaultHostCID is the default host CID for the enclave.
 const DefaultHostCID = 3
 
+// ClientTunnel is a struct that contains the port, request timeout, logger, and pool for the client tunnel.
 type ClientTunnel struct {
 	port           uint32
 	requestTimeout time.Duration
 	logger         *zerolog.Logger
+	pool           sync.Pool
 }
 
 // Port returns the port of the ClientTunnel.
@@ -36,6 +39,7 @@ func NewClientTunnel(port uint32, requestTimeout time.Duration, logger zerolog.L
 		port:           port,
 		requestTimeout: requestTimeout,
 		logger:         &logger,
+		pool:           sync.Pool{New: func() any { b := make([]byte, bufSize); return &b }},
 	}
 }
 
@@ -57,7 +61,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 	}
 	// Remove the newline character
 	targetAddress := string(targetLine[:len(targetLine)-1])
-	c.logger.Info().Msgf("Received target request: %s", targetAddress)
+	c.logger.Trace().Msgf("Received target request: %s", targetAddress)
 
 	// Use a dialer with context
 	dialer := &net.Dialer{
@@ -82,7 +86,9 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 
 	// From vsock client to TCP target
 	group.Go(func() error {
-		_, err := io.Copy(targetConn, vsockConn)
+		buf := c.pool.Get().(*[]byte)
+		defer c.pool.Put(buf)
+		_, err := io.CopyBuffer(targetConn, vsockConn, *buf)
 		if err != nil {
 			return fmt.Errorf("failed to copy data from vsock client to TCP target: %w", err)
 		}
@@ -91,7 +97,9 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 
 	// From TCP target to vsock client
 	group.Go(func() error {
-		_, err := io.Copy(vsockConn, targetConn)
+		buf := c.pool.Get().(*[]byte)
+		defer c.pool.Put(&buf)
+		_, err := io.CopyBuffer(vsockConn, targetConn, *buf)
 		if err != nil {
 			return fmt.Errorf("failed to copy data from TCP target to vsock client: %w", err)
 		}

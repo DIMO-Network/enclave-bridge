@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
@@ -16,6 +17,7 @@ import (
 type StdoutTunnel struct {
 	port   uint32
 	logger *zerolog.Logger
+	pool   sync.Pool
 }
 
 // Port returns the port of the ClientTunnel.
@@ -28,13 +30,16 @@ func NewStdoutTunnel(port uint32, logger zerolog.Logger) *StdoutTunnel {
 	return &StdoutTunnel{
 		port:   port,
 		logger: &logger,
+		pool:   sync.Pool{New: func() any { b := make([]byte, bufSize); return &b }},
 	}
 }
 
 // HandleConn dial a vsock connection and copy data in both directions.
 func (c *StdoutTunnel) HandleConn(vsockConn net.Conn) {
 	defer vsockConn.Close() //nolint:errcheck
-	_, err := io.Copy(os.Stdout, vsockConn)
+	buf := c.pool.Get().(*[]byte)
+	defer c.pool.Put(&buf)
+	_, err := io.CopyBuffer(os.Stdout, vsockConn, *buf)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to copy data from vsock to stdout")
 		return
