@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -35,13 +34,17 @@ type ReadyFunc func() error
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
+	go func() {
+		<-ctx.Done()
+		logger.Info().Msg("Received signal, shutting down...")
+	}()
 	group, groupCtx := errgroup.WithContext(ctx)
 
 	// Start monitoring server
 	monApp := CreateMonitoringServer(strconv.Itoa(defaultMonPort))
-	RunFiber(ctx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
+	runFiber(ctx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
 
-	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
 	group.Go(func() error {
 		return StartBridge(groupCtx, &logger)
 	})
@@ -92,41 +95,6 @@ func runBridge(ctx context.Context, bridgeSettings *config.BridgeSettings, ready
 	return nil
 }
 
-type tunnel interface {
-	ListenForTargetRequests(ctx context.Context) error
-}
-
-func runClientTunnel(ctx context.Context, proxy tunnel, group *errgroup.Group) {
-	// No need for waitGroup since errgroup handles waiting for goroutines
-	group.Go(func() error {
-		return proxy.ListenForTargetRequests(ctx)
-	})
-}
-
-func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
-	proxy := tcpproxy.Proxy{}
-	proxy.AddRoute(addr, target)
-
-	// First goroutine to run the proxy
-	group.Go(func() error {
-		err := proxy.Run()
-		if err != nil {
-			return fmt.Errorf("proxy run failed: %w", err)
-		}
-		return nil
-	})
-
-	// Second goroutine to handle shutdown
-	group.Go(func() error {
-		<-ctx.Done()
-		err := proxy.Close()
-		if err != nil {
-			return fmt.Errorf("proxy close failed: %w", err)
-		}
-		return nil
-	})
-}
-
 // CreateMonitoringServer creates a fiber server that listens for requests on the given port.
 func CreateMonitoringServer(port string) *fiber.App {
 	monApp := fiber.New(fiber.Config{DisableStartupMessage: true})
@@ -165,6 +133,7 @@ func StartBridge(parentCtx context.Context, logger *zerolog.Logger) error {
 		if err != nil {
 			// Check if the context was canceled
 			if parentCtx.Err() != nil {
+				cancelFunc()
 				return parentCtx.Err()
 			}
 			logger.Error().Err(err).Msg("Failed to accept target request")
@@ -218,13 +187,13 @@ func completeHandshake(ctx context.Context, logger *zerolog.Logger, conn net.Con
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to serialize environment: %w", err)
 	}
-	err = CtxWrite(ctx, conn, append(environment, '\n'))
+	err = enclave.WriteWithContext(ctx, conn, append(environment, '\n'))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to write environment: %w", err)
 	}
 	logger.Info().Msg("Waiting for enclave to send bridge configuration")
 	// read until a new line
-	configBytes, err := CtxReadBytes(ctx, conn, '\n')
+	configBytes, err := enclave.ReadBytesWithContext(ctx, conn, '\n')
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read config: %w", err)
 	}
@@ -247,7 +216,7 @@ func completeHandshake(ctx context.Context, logger *zerolog.Logger, conn net.Con
 		}()
 
 		// Send ACK to enclave
-		err = CtxWrite(ctx, conn, []byte{enclave.ACK})
+		err = enclave.WriteWithContext(ctx, conn, []byte{enclave.ACK})
 		if err != nil {
 			return fmt.Errorf("failed to send ACK to enclave: %w", err)
 		}
@@ -256,8 +225,8 @@ func completeHandshake(ctx context.Context, logger *zerolog.Logger, conn net.Con
 	return &settings, readyFunc, nil
 }
 
-// RunFiber runs a fiber server and returns a context that can be used to stop the server.
-func RunFiber(ctx context.Context, fiberApp *fiber.App, addr string, group *errgroup.Group) {
+// runFiber runs a fiber server and returns a context that can be used to stop the server.
+func runFiber(ctx context.Context, fiberApp *fiber.App, addr string, group *errgroup.Group) {
 	group.Go(func() error {
 		if err := fiberApp.Listen(addr); err != nil {
 			return fmt.Errorf("failed to start server: %w", err)
@@ -273,46 +242,37 @@ func RunFiber(ctx context.Context, fiberApp *fiber.App, addr string, group *errg
 	})
 }
 
-// CtxWrite writes to a connection and returns after the write has completed or the context is canceled.
-func CtxWrite(ctx context.Context, conn net.Conn, data []byte) error {
-	writeChan := make(chan error)
-	defer close(writeChan)
-	go func() {
-		_, err := conn.Write(data)
-		if ctx.Err() == nil {
-			writeChan <- err
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-writeChan:
-		return err
-	}
+type tunnel interface {
+	ListenForTargetRequests(ctx context.Context) error
 }
 
-// CtxReadBytes reads from a connection until the context is canceled.
-func CtxReadBytes(ctx context.Context, conn net.Conn, delim byte) ([]byte, error) {
-	reader := bufio.NewReader(conn)
-	// Use channels for both result and error to avoid race conditions
-	byteChan := make(chan []byte, 1)
-	errChan := make(chan error, 1)
-	defer close(byteChan)
-	defer close(errChan)
+func runClientTunnel(ctx context.Context, proxy tunnel, group *errgroup.Group) {
+	// No need for waitGroup since errgroup handles waiting for goroutines
+	group.Go(func() error {
+		return proxy.ListenForTargetRequests(ctx)
+	})
+}
 
-	go func() {
-		data, err := reader.ReadBytes(delim)
-		if ctx.Err() == nil {
-			byteChan <- data
-			errChan <- err
+func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
+	proxy := tcpproxy.Proxy{}
+	proxy.AddRoute(addr, target)
+
+	// First goroutine to run the proxy
+	group.Go(func() error {
+		err := proxy.Run()
+		if err != nil {
+			return fmt.Errorf("proxy run failed: %w", err)
 		}
-	}()
+		return nil
+	})
 
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case data := <-byteChan:
-		return data, <-errChan
-	}
+	// Second goroutine to handle shutdown
+	group.Go(func() error {
+		<-ctx.Done()
+		err := proxy.Close()
+		if err != nil {
+			return fmt.Errorf("proxy close failed: %w", err)
+		}
+		return nil
+	})
 }
