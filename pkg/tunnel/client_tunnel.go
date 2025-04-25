@@ -1,4 +1,4 @@
-package enclave
+package tunnel
 
 import (
 	"bufio"
@@ -10,13 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DIMO-Network/enclave-bridge/pkg/enclave"
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
-
-// DefaultHostCID is the default host CID for the enclave.
-const DefaultHostCID = 3
 
 // ClientTunnel is a struct that contains the port, request timeout, logger, and pool for the client tunnel.
 type ClientTunnel struct {
@@ -75,7 +73,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 	}
 	defer targetConn.Close() //nolint:errcheck
 
-	_, err = vsockConn.Write([]byte{ACK})
+	_, err = vsockConn.Write(enclave.ACK)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to write ACK to target service")
 		return
@@ -114,7 +112,7 @@ func (c *ClientTunnel) HandleConn(ctx context.Context, vsockConn net.Conn) {
 
 // ListenForTargetRequests listens for target requests on the vsock port.
 func (c *ClientTunnel) ListenForTargetRequests(ctx context.Context) error {
-	listener, err := vsock.ListenContextID(DefaultHostCID, c.port, nil)
+	listener, err := vsock.ListenContextID(enclave.DefaultHostCID, c.port, nil)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("Failed to listen for target requests")
 		return fmt.Errorf("failed to listen for target requests: %w", err)

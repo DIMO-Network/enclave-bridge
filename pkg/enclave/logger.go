@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// DefaultLogger creates a new logger with the given app name.
-func DefaultLogger(appName string, writer io.Writer) zerolog.Logger {
+// GetAndSetDefaultLogger creates a new logger with the given app name and sets it as the default context logger.
+func GetAndSetDefaultLogger(appName string, writer io.Writer) zerolog.Logger {
 	logger := zerolog.New(writer).With().Timestamp().Str("app", appName).Logger()
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range info.Settings {
@@ -20,6 +20,7 @@ func DefaultLogger(appName string, writer io.Writer) zerolog.Logger {
 			}
 		}
 	}
+	zerolog.DefaultContextLogger = &logger
 	return logger
 }
 
@@ -35,8 +36,8 @@ func SetLoggerLevel(level string) error {
 	return nil
 }
 
-// DefaultLoggerWithSocket creates a new logger that logs to a vsock socket.
-func DefaultLoggerWithSocket(appName string, port uint32) (zerolog.Logger, func(), error) {
+// GetAndSetDefaultLoggerWithSocket creates a new logger that logs to a vsock socket and sets it as the default context logger.
+func GetAndSetDefaultLoggerWithSocket(appName string, port uint32) (zerolog.Logger, func(), error) {
 	conn, err := vsock.Dial(DefaultHostCID, port, nil)
 	if err != nil {
 		return zerolog.Logger{}, nil, fmt.Errorf("failed to dial socket: %w", err)
@@ -44,6 +45,6 @@ func DefaultLoggerWithSocket(appName string, port uint32) (zerolog.Logger, func(
 	close := func() {
 		_ = conn.Close() //nolint:errcheck
 	}
-	logger := DefaultLogger(appName, conn)
+	logger := GetAndSetDefaultLogger(appName, conn)
 	return logger, close, nil
 }

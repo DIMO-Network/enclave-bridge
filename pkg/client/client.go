@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -84,12 +85,12 @@ func dialVsock(port uint32, network, addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to write to vsock: %w", err)
 	}
-	resp, err := bufio.NewReader(vsockConn).ReadByte()
+	resp, err := bufio.NewReader(vsockConn).ReadBytes('\n')
 	if err != nil {
 		return nil, fmt.Errorf("failed to read from vsock: %w", err)
 	}
-	if resp != enclave.ACK {
-		return nil, fmt.Errorf("invalid response from vsock: %d", resp)
+	if bytes.Equal(resp, enclave.ACK) {
+		return vsockConn, nil
 	}
-	return vsockConn, nil
+	return nil, fmt.Errorf("invalid response from vsock: %d", resp)
 }

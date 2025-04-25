@@ -2,26 +2,18 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
-	"time"
 
-	"github.com/DIMO-Network/enclave-bridge/pkg/config"
 	"github.com/DIMO-Network/enclave-bridge/pkg/enclave"
+	"github.com/DIMO-Network/enclave-bridge/pkg/tunnel"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
-	"github.com/mdlayher/vsock"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
-	"inet.af/tcpproxy"
 )
 
 const (
@@ -32,247 +24,42 @@ const (
 type ReadyFunc func() error
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	parentCtx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	logger := enclave.DefaultLogger("enclave-bridge", os.Stdout)
+	logger := enclave.GetAndSetDefaultLogger("enclave-bridge", os.Stdout)
 	go func() {
-		<-ctx.Done()
+		<-parentCtx.Done()
 		logger.Info().Msg("Received signal, shutting down...")
 	}()
-	group, groupCtx := errgroup.WithContext(ctx)
+	group, groupCtx := errgroup.WithContext(parentCtx)
+
+	stdoutPort, err := getStdoutPort()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get stdout port")
+	}
+	stdoutTunnel := tunnel.NewStdoutTunnel(stdoutPort, logger.With().Str("component", "stdout-tunnel").Logger())
+	runClientTunnel(groupCtx, stdoutTunnel, group)
 
 	// Start monitoring server
-	monApp := CreateMonitoringServer(strconv.Itoa(defaultMonPort))
-	runFiber(ctx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
-
-	group.Go(func() error {
-		return StartBridge(groupCtx, &logger)
-	})
-	err := group.Wait()
+	monApp := CreateMonitoringServer()
+	runFiber(groupCtx, monApp, ":"+strconv.Itoa(defaultMonPort), group)
+	bridge, err := CreateBridge(groupCtx)
 	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create bridge")
+	}
+	group.Go(func() error {
+		return bridge.Run(groupCtx)
+	})
+	err = group.Wait()
+	if err != nil && !errors.Is(err, context.Canceled) {
 		logger.Fatal().Err(err).Msg("Bridge failed")
 	}
 }
 
-func runBridge(ctx context.Context, bridgeSettings *config.BridgeSettings, readyFunc func() error) error {
-	logger := enclave.DefaultLogger(bridgeSettings.AppName, os.Stdout).With().Str("component", "enclave-bridge").Logger()
-
-	group, groupCtx := errgroup.WithContext(ctx)
-
-	// Set up logger.
-	err := enclave.SetLoggerLevel(bridgeSettings.Logger.Level)
-	if err != nil {
-		return fmt.Errorf("failed to set logger level: %w", err)
-	}
-	stdoutTunnel := enclave.NewStdoutTunnel(bridgeSettings.Logger.EnclaveDialPort, logger.With().Str("component", "stdout-tunnel").Logger())
-	runClientTunnel(groupCtx, stdoutTunnel, group)
-
-	// Set up server tunnels.
-	for _, serversSettings := range bridgeSettings.Servers {
-		serverTunnel := enclave.NewServerTunnel(serversSettings.EnclaveCID, serversSettings.EnclaveListenPort, logger.With().Str("component", "server-tunnel").Logger())
-		portStr := strconv.FormatUint(uint64(serversSettings.BridgeTCPPort), 10)
-		logger.Info().Str("port", portStr).Msgf("Starting Bridge server")
-		runServerTunnel(groupCtx, serverTunnel, ":"+portStr, group)
-	}
-
-	// Set up client tunnels.
-	for _, clientSettings := range bridgeSettings.Clients {
-		clientTunnel := enclave.NewClientTunnel(clientSettings.EnclaveDialPort, clientSettings.RequestTimeout, logger.With().Str("component", "client-tunnel").Logger())
-		portStr := strconv.FormatUint(uint64(clientSettings.EnclaveDialPort), 10)
-		logger.Info().Str("port", portStr).Msgf("Starting Bridge client")
-		runClientTunnel(groupCtx, clientTunnel, group)
-	}
-
-	err = readyFunc()
-	if err != nil {
-		return fmt.Errorf("failed to ACK to enclave: %w", err)
-	}
-
-	err = group.Wait()
-	if err != nil {
-		return fmt.Errorf("failed to run servers: %w", err)
-	}
-	return nil
-}
-
 // CreateMonitoringServer creates a fiber server that listens for requests on the given port.
-func CreateMonitoringServer(port string) *fiber.App {
+func CreateMonitoringServer() *fiber.App {
 	monApp := fiber.New(fiber.Config{DisableStartupMessage: true})
-	monApp.Get("/", func(c *fiber.Ctx) error { return nil })
+	monApp.Get("/", func(*fiber.Ctx) error { return nil })
 	monApp.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 	return monApp
-}
-
-// StartBridge listens for a new connection and then starts a new bridge instance.
-func StartBridge(parentCtx context.Context, logger *zerolog.Logger) error {
-	var listener *vsock.Listener
-	var err error
-	initPort := os.Getenv("VSOCK_INIT_PORT")
-	initPortInt := enclave.InitPort
-	if initPort != "" {
-		initPortInt64, err := strconv.ParseUint(initPort, 10, 32)
-		if err != nil {
-			return fmt.Errorf("failed to convert VSOCK_INIT_PORT to int: %w", err)
-		}
-		initPortInt = uint32(initPortInt64)
-	}
-	cancelFunc := func() {}
-	var wg sync.WaitGroup
-	var bridgeMutex sync.Mutex
-
-	listener, err = vsock.ListenContextID(enclave.DefaultHostCID, initPortInt, nil)
-	if err != nil {
-		return fmt.Errorf("failed to listen for target requests: %w", err)
-	}
-	defer listener.Close() //nolint:errcheck
-
-	logger.Info().Msg("Waiting for new connection...")
-	// accept connections until the context is canceled
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			// Check if the context was canceled
-			if parentCtx.Err() != nil {
-				cancelFunc()
-				return parentCtx.Err()
-			}
-			logger.Error().Err(err).Msg("Failed to accept target request")
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		logger.Info().Msg("Starting new bridge")
-
-		// Lock mutex to ensure only one bridge transition happens at a time
-		bridgeMutex.Lock()
-		// on accept stop the currently running bridge
-		cancelFunc()
-		wg.Wait()
-		var bridgeCtx context.Context
-		bridgeCtx, cancelFunc = context.WithCancel(parentCtx)
-		wg.Add(1)
-		bridgeMutex.Unlock()
-
-		go func() {
-			defer wg.Done()
-			err := handleInit(bridgeCtx, logger, conn)
-			if err != nil {
-				// if we are restarting due to a new connection just log the error and continue
-				// else this should be a fatal error
-				if errors.Is(err, context.Canceled) {
-					logger.Error().Err(err).Msg("Bridge context canceled")
-				} else {
-					logger.Fatal().Err(err).Msg("Failed to handle init")
-				}
-			}
-		}()
-	}
-}
-
-func handleInit(ctx context.Context, logger *zerolog.Logger, conn net.Conn) error {
-	go func() {
-		<-ctx.Done()
-		logger.Info().Msg("Context canceled, shutting down bridge instance")
-		conn.Close() //nolint:errcheck
-	}()
-	settings, readyFunc, err := completeHandshake(ctx, logger, conn)
-	if err != nil {
-		return fmt.Errorf("failed to complete handshake: %w", err)
-	}
-	return runBridge(ctx, settings, readyFunc)
-}
-
-func completeHandshake(ctx context.Context, logger *zerolog.Logger, conn net.Conn) (*config.BridgeSettings, func() error, error) {
-	logger.Info().Msg("Sending Environment to enclave")
-	environment, err := config.SerializeEnvironment("")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize environment: %w", err)
-	}
-	err = enclave.WriteWithContext(ctx, conn, append(environment, '\n'))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to write environment: %w", err)
-	}
-	logger.Info().Msg("Waiting for enclave to send bridge configuration")
-	// read until a new line
-	configBytes, err := enclave.ReadBytesWithContext(ctx, conn, '\n')
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	var settings config.BridgeSettings
-	err = json.Unmarshal(configBytes, &settings)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-	if settings.Error != "" {
-		return nil, nil, fmt.Errorf("enclave failed to configure: %s", settings.Error)
-	}
-	readyFunc := func() error {
-		logger.Debug().Msg("Sending start ACK to enclave")
-		defer func() {
-			closeErr := conn.Close()
-			if closeErr != nil {
-				logger.Warn().Err(closeErr).Msg("Error closing connection after ACK")
-			}
-		}()
-
-		// Send ACK to enclave
-		err = enclave.WriteWithContext(ctx, conn, []byte{enclave.ACK})
-		if err != nil {
-			return fmt.Errorf("failed to send ACK to enclave: %w", err)
-		}
-		return nil
-	}
-	return &settings, readyFunc, nil
-}
-
-// runFiber runs a fiber server and returns a context that can be used to stop the server.
-func runFiber(ctx context.Context, fiberApp *fiber.App, addr string, group *errgroup.Group) {
-	group.Go(func() error {
-		if err := fiberApp.Listen(addr); err != nil {
-			return fmt.Errorf("failed to start server: %w", err)
-		}
-		return nil
-	})
-	group.Go(func() error {
-		<-ctx.Done()
-		if err := fiberApp.Shutdown(); err != nil {
-			return fmt.Errorf("failed to shutdown server: %w", err)
-		}
-		return nil
-	})
-}
-
-type tunnel interface {
-	ListenForTargetRequests(ctx context.Context) error
-}
-
-func runClientTunnel(ctx context.Context, proxy tunnel, group *errgroup.Group) {
-	// No need for waitGroup since errgroup handles waiting for goroutines
-	group.Go(func() error {
-		return proxy.ListenForTargetRequests(ctx)
-	})
-}
-
-func runServerTunnel(ctx context.Context, target tcpproxy.Target, addr string, group *errgroup.Group) {
-	proxy := tcpproxy.Proxy{}
-	proxy.AddRoute(addr, target)
-
-	// First goroutine to run the proxy
-	group.Go(func() error {
-		err := proxy.Run()
-		if err != nil {
-			return fmt.Errorf("proxy run failed: %w", err)
-		}
-		return nil
-	})
-
-	// Second goroutine to handle shutdown
-	group.Go(func() error {
-		<-ctx.Done()
-		err := proxy.Close()
-		if err != nil {
-			return fmt.Errorf("proxy close failed: %w", err)
-		}
-		return nil
-	})
 }

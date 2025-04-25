@@ -7,6 +7,18 @@ import (
 	"io"
 )
 
+const (
+	// DefaultHostCID is the default host CID for the enclave.
+	DefaultHostCID = 3
+	// InitPort is the port used to initialize the enclave-bridge.
+	InitPort = uint32(5000)
+	// StdoutPort is the port used to send stdout to the enclave-bridge.
+	StdoutPort = uint32(4999)
+)
+
+// ACK returns the ACK message used for communication between the enclave and the enclave-bridge.
+var ACK = []byte{0x06, '\n'}
+
 // WriteWithContext is a context aware wrapper around io.Writer.Write.
 // The function will return after the write has completed or the context is canceled.
 func WriteWithContext(ctx context.Context, writer io.Writer, data []byte) error {

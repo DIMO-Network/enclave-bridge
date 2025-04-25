@@ -1,4 +1,4 @@
-package enclave
+package tunnel
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/DIMO-Network/enclave-bridge/pkg/enclave"
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
 )
@@ -48,7 +49,7 @@ func (c *StdoutTunnel) HandleConn(vsockConn net.Conn) {
 
 // ListenForTargetRequests listens for target requests on the vsock port.
 func (c *StdoutTunnel) ListenForTargetRequests(ctx context.Context) error {
-	listener, err := vsock.ListenContextID(DefaultHostCID, c.port, nil)
+	listener, err := vsock.ListenContextID(enclave.DefaultHostCID, c.port, nil)
 	if err != nil {
 		return fmt.Errorf("failed to listen for target requests: %w", err)
 	}

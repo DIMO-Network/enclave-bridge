@@ -7,20 +7,30 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gofrs/uuid"
 )
 
 // BridgeSettings is the configuration for setting up the bridge.
 type BridgeSettings struct {
 	// AppName is the name of the application.
 	AppName string `json:"appName"`
+	// Watchdog is the configuration for the watchdog.
+	Watchdog WatchdogSettings `json:"watchdog"`
 	// Logger is the configuration for the logger.
 	Logger LoggerSettings `json:"logger"`
 	// Servers is the configuration for the servers.
 	Servers []ServerSettings `json:"servers"`
 	// Clients is the configuration for the clients.
 	Clients []ClientSettings `json:"clients"`
-	// Error is an optional error message to display when the enclave failed to configure.
-	Error string `json:"error"`
+}
+
+// WatchdogSettings is the configuration for the watchdog which terminates the bridge if the enclave is unresponsive or restarted.
+type WatchdogSettings struct {
+	// EnclaveID is the ID of the enclave.
+	EnclaveID uuid.UUID `json:"enclaveId"`
+	// Interval if interval elapses without a heartbeat, the watchdog will terminate the bridge
+	Interval time.Duration `json:"interval"`
 }
 
 // ServerSettings is the configuration for setting up the server.
@@ -38,8 +48,7 @@ type ClientSettings struct {
 
 // LoggerSettings is the configuration for setting up the logger.
 type LoggerSettings struct {
-	Level           string `json:"level"`
-	EnclaveDialPort uint32 `json:"enclaveDialPort"`
+	Level string `json:"level"`
 }
 
 // SerializeEnvironment creates a key value JSON representation of environment variables
