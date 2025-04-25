@@ -101,8 +101,8 @@ func (w *Watchdog) handleConn(ctx context.Context, conn net.Conn) {
 }
 
 // NewStandardSettings returns a standard watchdog settings.
-func NewStandardSettings() *config.WatchdogSettings {
-	return &config.WatchdogSettings{
+func NewStandardSettings() config.WatchdogSettings {
+	return config.WatchdogSettings{
 		EnclaveID: uuid.Must(uuid.NewV4()),
 		Interval:  time.Second * 30,
 	}
