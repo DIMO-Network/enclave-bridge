@@ -4,7 +4,13 @@ package enclave
 import (
 	"bufio"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"fmt"
 	"io"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -136,4 +142,17 @@ func ReadBytesWithContext(ctx context.Context, reader io.Reader, delim byte) ([]
 		// We read from errChan after reading from byteChan, which is safe because they're sent together
 		return data, <-errChan
 	}
+}
+
+// CreateKeys creates a new wallet and cert private key.
+func CreateKeys() (walletPrivateKey *ecdsa.PrivateKey, certPrivateKey *ecdsa.PrivateKey, err error) {
+	certPrivateKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate cert private key: %w", err)
+	}
+	walletPrivateKey, err = crypto.GenerateKey()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate wallet private key: %w", err)
+	}
+	return walletPrivateKey, certPrivateKey, nil
 }
