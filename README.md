@@ -13,6 +13,52 @@ The Enclave Bridge facilitates secure communication between applications running
 - **Host Logging Bridge**: Provides a mechanism for enclaves to send logs to the host's standard output for monitoring and troubleshooting
 - **Dynamic Configuration**: Supports runtime configuration exchange between enclaves and the bridge
 
+## Quick Start Example
+
+We provide a simple example that demonstrates how to create an enclave application that communicates with the bridge. The example shows:
+
+- Setting up logging to the bridge
+- Establishing communication with the bridge
+- Creating a simple HTTP server in the enclave
+- Handling graceful shutdown
+
+### Example Overview
+
+The example creates a simple HTTP server that runs inside an enclave. The server is accessible from the host machine through the enclave-bridge. Here's how it works:
+
+1. The enclave starts and establishes a connection with the bridge
+2. The bridge is configured to forward TCP connections from port 8080 on the host to port 5001 in the enclave
+3. The enclave runs a simple HTTP server that responds with "Hello from the enclave!"
+4. When you make a request to `http://localhost:8080/` on the host, it's forwarded to the enclave
+
+### Key Components
+
+#### Bridge Handshake
+
+The handshake process establishes communication between the enclave and bridge:
+
+1. The enclave connects to the bridge via VSOCK
+2. Configuration is exchanged
+3. The bridge sets up the necessary tunnels
+4. The watchdog is started to monitor the enclave's health
+
+#### Server Setup
+
+The example uses Fiber to create a simple HTTP server that:
+
+1. Listens on VSOCK port 5001
+2. Responds to HTTP requests
+3. Handles graceful shutdown
+
+#### Logging
+
+Logs are sent through VSOCK to the bridge, making them visible on the host machine.
+
+### Port Mapping
+
+- Host port 8080 → Enclave VSOCK port 5001 (server)
+- Enclave VSOCK port 5002 (client, for outbound connections)
+
 ## Startup Configuration Handshake
 
 The Enclave Bridge uses a precise handshake protocol during initialization to establish configuration between the host and enclave:
