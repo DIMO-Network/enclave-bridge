@@ -118,7 +118,13 @@ func (w *Watchdog) startTicker(ctx context.Context) error {
 // HandleConn handles a connection from the enclave.
 func (w *Watchdog) HandleConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close() //nolint:errcheck
-	go Heartbeat(ctx, append(w.enclaveID.Bytes(), '\n'), conn, w.interval)
+	go func() {
+		err := Heartbeat(ctx, append(w.enclaveID.Bytes(), '\n'), conn, w.interval)
+		if err != nil {
+			logger := zerolog.Ctx(ctx).With().Str("component", "watchdog").Logger()
+			logger.Error().Err(err).Msg("watchdog heartbeat failed")
+		}
+	}()
 	for {
 		enclaveID, err := enclave.ReadBytesWithContext(ctx, conn, '\n')
 		if err != nil {
