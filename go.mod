@@ -4,6 +4,7 @@ go 1.24
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1
+	github.com/cenkalti/backoff/v5 v5.0.2
 	github.com/ethereum/go-ethereum v1.15.7
 	github.com/go-acme/lego/v4 v4.23.1
 	github.com/gofiber/fiber/v2 v2.52.6

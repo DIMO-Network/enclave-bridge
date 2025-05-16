@@ -1,14 +1,17 @@
-package enclave
+package handshake
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
 	"github.com/DIMO-Network/enclave-bridge/pkg/config"
+	"github.com/DIMO-Network/enclave-bridge/pkg/enclave"
+	"github.com/DIMO-Network/enclave-bridge/pkg/watchdog"
 	"github.com/caarlos0/env/v11"
 	"github.com/mdlayher/vsock"
 	"github.com/rs/zerolog"
@@ -33,13 +36,13 @@ type EnclaveSetup struct {
 	environment map[string]string
 }
 
-// Start starts the enclave-bridge setup process.
-func (e *EnclaveSetup) Start(ctx context.Context) error {
-	return e.StartWithPort(ctx, InitPort)
+// StartHandshake starts the enclave-bridge setup process.
+func (e *EnclaveSetup) StartHandshake(ctx context.Context) error {
+	return e.StartHandshakeWithPort(ctx, enclave.InitPort)
 }
 
-// StartWithPort starts the enclave-bridge setup process with a custom init port.
-func (e *EnclaveSetup) StartWithPort(ctx context.Context, initPort uint32) error {
+// StartHandshakeWithPort starts the enclave-bridge setup process with a custom init port.
+func (e *EnclaveSetup) StartHandshakeWithPort(ctx context.Context, initPort uint32) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	logger := zerolog.Ctx(ctx)
@@ -68,16 +71,16 @@ func (e *EnclaveSetup) StartWithPort(ctx context.Context, initPort uint32) error
 // setupConnection attempts to establish a connection to the enclave and get environment settings.
 func (e *EnclaveSetup) setupConnection(ctx context.Context, initPort uint32) ([]byte, error) {
 	var err error
-	e.conn, err = vsock.Dial(DefaultHostCID, initPort, nil)
+	e.conn, err = vsock.Dial(enclave.DefaultHostCID, initPort, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial vsock: %w", err)
 	}
-	_, err = e.conn.Write(ACK)
+	_, err = e.conn.Write(enclave.ACK)
 	if err != nil {
 		_ = e.conn.Close()
 		return nil, fmt.Errorf("failed to write ack: %w", err)
 	}
-	envSettings, err := ReadBytesWithContext(ctx, e.conn, '\n')
+	envSettings, err := enclave.ReadBytesWithContext(ctx, e.conn, '\n')
 	if err != nil {
 		_ = e.conn.Close()
 		return nil, fmt.Errorf("failed to read environment variables: %w", err)
@@ -93,68 +96,62 @@ func (e *EnclaveSetup) Environment() map[string]string {
 	return e.environment
 }
 
-// SendBridgeConfig sends the config to the enclave-bridge.
-func (e *EnclaveSetup) SendBridgeConfig(ctx context.Context, bridgeConfig *config.BridgeSettings) error {
+// FinishHandshakeAndWait sends the final config to the enclave-bridge and starts the watchdog. This function runs indefinitely.
+// It returns an error if the handshake fails to complete or the watchdog fails for any reason.
+func (e *EnclaveSetup) FinishHandshakeAndWait(ctx context.Context, bridgeConfig *config.BridgeSettings) error {
 	e.mutex.Lock()
-	defer e.mutex.Unlock()
 	if e.conn == nil {
+		e.mutex.Unlock()
 		return ErrConnectionNotEstablished
 	}
 	marshaledSettings, err := json.Marshal(bridgeConfig)
 	if err != nil {
+		e.mutex.Unlock()
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-	err = WriteWithContext(ctx, e.conn, append(marshaledSettings, '\n'))
+	err = enclave.WriteWithContext(ctx, e.conn, append(marshaledSettings, '\n'))
 	if err != nil {
+		e.mutex.Unlock()
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 	go func() {
 		// wait for ack then close connection
-		msg, err := ReadBytesWithContext(ctx, e.conn, '\n')
+		msg, err := enclave.ReadBytesWithContext(ctx, e.conn, '\n')
 		if err != nil {
 			e.err = fmt.Errorf("failed to wait for enclave-bridge to ack config: %w", err)
 		}
-		if !bytes.Equal(msg, ACK) {
+		if !bytes.Equal(msg, enclave.ACK) {
 			e.err = ErrMissingAck
 		}
-		logger := zerolog.Ctx(ctx)
-		go startWatchdog(ctx, InitPort, &bridgeConfig.Watchdog, logger)
 		_ = e.conn.Close()
 		e.markReady()
 	}()
-	return nil
-}
-
-// startWatchdog starts a watchdog on the enclave-bridge.
-func startWatchdog(ctx context.Context, initPort uint32, cfg *config.WatchdogSettings, logger *zerolog.Logger) {
-	uuidMessage := append(cfg.EnclaveID.Bytes(), '\n')
-	for {
-		watchDogConn, err := vsock.Dial(DefaultHostCID, initPort, nil)
-		if err != nil {
-			logger.Error().Err(err).Msg("watchdog vsock dial failed")
-			continue
-		}
-		err = heartbeat(ctx, uuidMessage, watchDogConn, cfg.Interval, logger)
-		if err != nil {
-			logger.Warn().Err(err).Msg("watchdog heartbeat failed")
-		}
-	}
-}
-
-func heartbeat(ctx context.Context, uuidMessage []byte, watchDogConn *vsock.Conn, interval time.Duration, logger *zerolog.Logger) error {
-	for {
-		_, err := watchDogConn.Write(uuidMessage)
-		if err != nil {
-			return fmt.Errorf("failed to write to conn: %w", err)
-		}
-		time.Sleep(interval / 2)
-	}
+	e.mutex.Unlock()
+	return e.runWatchdog(ctx, bridgeConfig)
 }
 
 // WaitForBridgeSetup waits for the enclave-bridge to be ready.
 func (e *EnclaveSetup) WaitForBridgeSetup() error {
 	<-e.ready
 	return e.err
+}
+
+func (e *EnclaveSetup) runWatchdog(ctx context.Context, bridgeConfig *config.BridgeSettings) error {
+	// Wait for the enclave-bridge to be ready or the context to be done.
+	select {
+	case <-e.ready:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	wd, err := watchdog.New(&bridgeConfig.Watchdog)
+	if err != nil {
+		e.err = fmt.Errorf("failed to create watchdog: %w", err)
+	}
+	dialer := func() (net.Conn, error) {
+		return vsock.Dial(enclave.DefaultHostCID, enclave.InitPort, nil)
+	}
+	return wd.StartClientSide(ctx, dialer)
 }
 
 // markReady marks the enclave-bridge as ready.

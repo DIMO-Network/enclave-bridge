@@ -8,6 +8,7 @@ import (
 
 	"github.com/DIMO-Network/enclave-bridge/pkg/config"
 	"github.com/DIMO-Network/enclave-bridge/pkg/enclave"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog"
 )
@@ -28,8 +29,9 @@ const (
 
 // Watchdog is a struct that handles the enclave watchdog.
 type Watchdog struct {
-	settings     *config.WatchdogSettings
-	timer        *time.Ticker
+	enclaveID    uuid.UUID
+	interval     time.Duration
+	ticker       *time.Ticker
 	watchErrChan chan error
 }
 
@@ -39,16 +41,17 @@ func New(settings *config.WatchdogSettings) (*Watchdog, error) {
 		return nil, ErrEnclaveIDRequired
 	}
 	return &Watchdog{
-		settings:     settings,
-		timer:        time.NewTicker(settings.Interval),
+		enclaveID:    settings.EnclaveID,
+		interval:     settings.Interval,
+		ticker:       time.NewTicker(settings.Interval),
 		watchErrChan: make(chan error),
 	}, nil
 }
 
-// Start starts the watchdog. The Watchdog will return an error if the accepted connection from the listener is not the correct enclave ID.
+// StartServerSide starts the watchdog. The Watchdog will return an error if the accepted connection from the listener is not the correct enclave ID.
 // Or if no connection sends a heartbeat within the interval.
 // If the context is cancelled, the watchdog will stop without error.
-func (w *Watchdog) Start(ctx context.Context, listener net.Listener) error {
+func (w *Watchdog) StartServerSide(ctx context.Context, listener net.Listener) error {
 	logger := zerolog.Ctx(ctx).With().Str("component", "watchdog").Logger()
 	defer listener.Close() //nolint:errcheck
 	go func() {
@@ -58,21 +61,54 @@ func (w *Watchdog) Start(ctx context.Context, listener net.Listener) error {
 				logger.Error().Err(err).Msg("failed to accept connection")
 				continue
 			}
-			go w.handleConn(ctx, conn)
+			// asynchronously handle the connection since we are the server.
+			go w.HandleConn(ctx, conn)
 		}
 	}()
-	return w.startTimer(ctx)
+	return w.startTicker(ctx)
+}
+
+// StartClientSide starts the watchdog. The Watchdog will return an error if the accepted connection from the listener is not the correct enclave ID.
+// Or if no connection sends a heartbeat within the interval.
+// If the context is cancelled, the watchdog will stop without error.
+func (w *Watchdog) StartClientSide(ctx context.Context, dial func() (net.Conn, error)) error {
+	logger := zerolog.Ctx(ctx).With().Str("component", "watchdog").Logger()
+
+	retryBackoff := backoff.ExponentialBackOff{
+		InitialInterval:     time.Millisecond * 100,
+		RandomizationFactor: backoff.DefaultRandomizationFactor,
+		Multiplier:          backoff.DefaultMultiplier,
+		MaxInterval:         w.interval,
+	}
+
+	go func() {
+		for {
+			watchDogConn, err := dial()
+			if err != nil {
+				logger.Error().Err(err).Msg("watchdog client dial failed")
+				// Use exponential backoff for retry
+				time.Sleep(retryBackoff.NextBackOff())
+				continue
+			}
+			// Reset backoff on successful connection
+			retryBackoff.Reset()
+			// synchronously handle the connection since we are the one that initiated the connection.
+			w.HandleConn(ctx, watchDogConn)
+			watchDogConn.Close() //nolint:errcheck
+		}
+	}()
+	return w.startTicker(ctx)
 }
 
 // Start starts the watchdog.
-func (w *Watchdog) startTimer(ctx context.Context) error {
-	w.timer.Reset(w.settings.Interval)
+func (w *Watchdog) startTicker(ctx context.Context) error {
+	w.ticker.Reset(w.interval)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-w.timer.C:
-			return fmt.Errorf("%w: no heartbeat within %s", ErrEnclaveHeartbeatTimeout, w.settings.Interval)
+		case <-w.ticker.C:
+			return fmt.Errorf("%w: no heartbeat within %s", ErrEnclaveHeartbeatTimeout, w.interval)
 		case watchErr := <-w.watchErrChan:
 			return watchErr
 		}
@@ -80,8 +116,9 @@ func (w *Watchdog) startTimer(ctx context.Context) error {
 }
 
 // HandleConn handles a connection from the enclave.
-func (w *Watchdog) handleConn(ctx context.Context, conn net.Conn) {
+func (w *Watchdog) HandleConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close() //nolint:errcheck
+	go Heartbeat(ctx, append(w.enclaveID.Bytes(), '\n'), conn, w.interval)
 	for {
 		enclaveID, err := enclave.ReadBytesWithContext(ctx, conn, '\n')
 		if err != nil {
@@ -91,12 +128,12 @@ func (w *Watchdog) handleConn(ctx context.Context, conn net.Conn) {
 		}
 		// Remove the newline character
 		enclaveID = enclaveID[:len(enclaveID)-1]
-		if w.settings.EnclaveID != uuid.FromBytesOrNil(enclaveID) {
+		if w.enclaveID != uuid.FromBytesOrNil(enclaveID) {
 			w.watchErrChan <- fmt.Errorf("%w: got %v, expected %v",
-				ErrEnclaveIDMismatch, uuid.FromBytesOrNil(enclaveID), w.settings.EnclaveID)
+				ErrEnclaveIDMismatch, uuid.FromBytesOrNil(enclaveID), w.enclaveID)
 			return
 		}
-		w.timer.Reset(w.settings.Interval)
+		w.ticker.Reset(w.interval)
 	}
 }
 
@@ -105,5 +142,22 @@ func NewStandardSettings() config.WatchdogSettings {
 	return config.WatchdogSettings{
 		EnclaveID: uuid.Must(uuid.NewV4()),
 		Interval:  time.Second * 30,
+	}
+}
+
+// Heartbeat sends a heartbeat to a watchdog.
+func Heartbeat(ctx context.Context, uuidMessage []byte, watchDogConn net.Conn, interval time.Duration) error {
+	ticker := time.NewTicker(interval / 2)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if _, err := watchDogConn.Write(uuidMessage); err != nil {
+				return fmt.Errorf("failed to write to conn: %w", err)
+			}
+		}
 	}
 }

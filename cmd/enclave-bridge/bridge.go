@@ -170,7 +170,7 @@ func (b *Bridge) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to create watchdog: %w", err)
 	}
 	group.Go(func() error {
-		return watchDog.Start(groupCtx, b.listener)
+		return watchDog.StartServerSide(groupCtx, b.listener)
 	})
 
 	err = b.readyFunc()

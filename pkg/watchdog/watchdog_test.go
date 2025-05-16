@@ -78,7 +78,7 @@ func TestWatchdogTimeout(t *testing.T) {
 	// Start the watchdog in a goroutine
 	errCh := make(chan error)
 	go func() {
-		errCh <- dog.Start(t.Context(), listener)
+		errCh <- dog.StartServerSide(t.Context(), listener)
 	}()
 
 	// Wait for timeout to occur
@@ -106,7 +106,7 @@ func TestWatchdogIDMismatch(t *testing.T) {
 	// Start the watchdog in a goroutine
 	errCh := make(chan error)
 	go func() {
-		errCh <- dog.Start(t.Context(), listener)
+		errCh <- dog.StartServerSide(t.Context(), listener)
 	}()
 
 	// Connect to the watchdog
@@ -140,7 +140,7 @@ func TestWatchdogHeartbeat(t *testing.T) {
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- dog.Start(ctx, listener)
+		errCh <- dog.StartServerSide(ctx, listener)
 	}()
 
 	// Connect to the watchdog
@@ -194,7 +194,7 @@ func TestWatchdogContextCancellation(t *testing.T) {
 	errCh := make(chan error)
 
 	go func() {
-		errCh <- dog.Start(ctx, listener)
+		errCh <- dog.StartServerSide(ctx, listener)
 	}()
 
 	// Wait a bit then cancel the context
